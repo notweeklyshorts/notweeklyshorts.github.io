@@ -54039,7 +54039,7 @@
                 ku.set(this, "v6/")
             }
             getLeaderboard(e, t, n, i, r) {
-                let a = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard?version=0.6.0&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
+                let a = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard?version=0.6.2&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
                 return this.determinismState == Js.Ok && (a += "&userTokenHash=" + encodeURIComponent(e)),
                 new Promise(( (t, n) => {
                     const i = new XMLHttpRequest;
@@ -54156,7 +54156,7 @@
                 ))
             }
             getLeaderboardUserEntry(e, t, n) {
-                const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.0&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=" + n.toString();
+                const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.2&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=" + n.toString();
                 return new Promise(( (e, t) => {
                     const n = new XMLHttpRequest;
                     n.timeout = C.get(this, wu, "f"),
@@ -54204,7 +54204,7 @@
                 ))
             }
             getRecordings(e) {
-                const t = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "recordings?version=0.6.0&ids=" + e.join(",");
+                const t = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "recordings?version=0.6.2&ids=" + e.join(",");
                 return new Promise(( (e, n) => {
                     if (this.determinismState != Js.Ok)
                         n(new Error("Getting recordings not allowed"));
@@ -54277,7 +54277,7 @@
                             c(new Error("Recording is too large"));
                         else {
                             const o = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard";
-                            let d = "version=0.6.0&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize() + "&trackId=" + r + "&frames=" + s.numberOfFrames.toString() + "&recording=" + h;
+                            let d = "version=0.6.2&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize() + "&trackId=" + r + "&frames=" + s.numberOfFrames.toString() + "&recording=" + h;
                             null != a && (d += "&onlyVerified=" + a.toString());
                             const u = new XMLHttpRequest;
                             u.timeout = C.get(this, wu, "f"),
@@ -54349,7 +54349,7 @@
             submitUserProfile(e, t, n, i) {
                 return new Promise(( (r, a) => {
                     const s = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "user"
-                      , o = "version=0.6.0&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize()
+                      , o = "version=0.6.2&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize()
                       , l = new XMLHttpRequest;
                     l.timeout = C.get(this, wu, "f"),
                     l.overrideMimeType("text/plain"),
@@ -54369,7 +54369,7 @@
                         s(new Error("Submit not allowed"));
                     else {
                         const o = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "verifyRecordings"
-                          , l = "version=0.6.0&userToken=" + encodeURIComponent(e) + (null != t ? "&trackId=" + t : "") + "&maxFrames=" + n.toString() + "&getEstimatedRemaining=" + i.toString() + "&recordings=" + encodeURIComponent(JSON.stringify(r))
+                          , l = "version=0.6.2&userToken=" + encodeURIComponent(e) + (null != t ? "&trackId=" + t : "") + "&maxFrames=" + n.toString() + "&getEstimatedRemaining=" + i.toString() + "&recordings=" + encodeURIComponent(JSON.stringify(r))
                           , c = new XMLHttpRequest;
                         c.timeout = C.get(this, xu, "f"),
                         c.overrideMimeType("text/plain"),
@@ -54442,7 +54442,7 @@
             }
             getUser(e) {
                 return new Promise(( (t, n) => {
-                    const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "user?version=0.6.0&userToken=" + encodeURIComponent(e)
+                    const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "user?version=0.6.2&userToken=" + encodeURIComponent(e)
                       , r = new XMLHttpRequest;
                     r.timeout = C.get(this, wu, "f"),
                     r.overrideMimeType("text/plain"),
@@ -54503,7 +54503,7 @@
             }
             getIceServers() {
                 return new Promise(( (e, t) => {
-                    const n = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "iceServers?version=0.6.0"
+                    const n = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "iceServers?version=0.6.2"
                       , i = new XMLHttpRequest;
                     i.timeout = C.get(this, wu, "f"),
                     i.overrideMimeType("text/plain"),
