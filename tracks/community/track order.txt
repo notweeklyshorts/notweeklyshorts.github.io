@@ -3,3 +3,12 @@
 3- koselig
 4- skybound
 5- shardmir
+
+
+things i need to change every time i update:
+- track leaderboard id (inspect -> network)
+- track png
+- track code (.track file)
+- name (1 - WIDE, 2 - SLOW, 3 - PUZZLE, 4 - FAST, 5 - LOL)
+- environment (summer, winter, dessert)
+- Author (Cookedbyapringle)

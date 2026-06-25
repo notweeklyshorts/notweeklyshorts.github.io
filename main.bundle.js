@@ -49192,7 +49192,7 @@
                 C.set(this, no, s, "f"),
                 C.set(this, io, c, "f"),
                 C.set(this, ro, h, "f"),
-                C.set(this, mo, o.isOfficialTrack(t) || o.isCommunityTrack(t), "f"),
+                C.set(this, mo, o.isOfficialTrack(t), "f"),
                 C.set(this, ao, e, "f"),
                 C.set(this, so, document.createElement("div"), "f"),
                 C.get(this, so, "f").className = "leaderboard-ui",
@@ -52042,55 +52042,55 @@
                 }
                 )),
                 C.set(this, Xh, [{
-                    id: "76979591922f2e9daa090e1acb93c664a0a4d49f2a4b221eada9cc25462b0b49",
+                    id: "8a12fc3f6ae6bc9fb3d60b8fd56944478e5634f14221ecd91a2a4177106b531a",
                     group: "0.6.0",
                     trackMetadata: {
-                        name: "1 - Wide",
+                        name: "1 - race",
                         author: "Cookedbyapringle",
                         lastModified: null
                     },
-                    environment: TrackEnvironment.Summer,
+                    environment: TrackEnvironment.Desert,
                     trackUrl: "tracks/community/marvelous_marble.track",
                     thumbnail: "tracks/community/thumbnails/marvelous_marble.png"
                 }, {
-                    id: "520c4f511821ced30b99bceafbb02e6b7531e867126b0756e68d5e157691ef2f",
+                    id: "2909df017040a62807141541da1ec9c2839437bd75a6f882e1609c71ae461b5c",
                     group: "0.6.0",
                     trackMetadata: {
-                        name: "Arx Lucida",
-                        author: "Flatbread",
+                        name: "2 - trek",
+                        author: "Cookedbyapringle",
                         lastModified: null
                     },
-                    environment: TrackEnvironment.Summer,
+                    environment: TrackEnvironment.Desert,
                     trackUrl: "tracks/community/arx_lucida.track",
                     thumbnail: "tracks/community/thumbnails/arx_lucida.png"
                 }, {
-                    id: "315c9e95c567cce4feca78f5ad6e8d08d0a22dac0d56061af567b43eea3d4fa8",
+                    id: "84e8bca12bc7a171e44d4bf377c4abe130a4f2427d8e24b11f62334326deaa3b",
                     group: "0.6.0",
                     trackMetadata: {
-                        name: "Koselig",
-                        author: "Flatbread & BonnieBeans",
+                        name: "3 - maze",
+                        author: "Cookedbyapringle",
                         lastModified: null
                     },
                     environment: TrackEnvironment.Winter,
                     trackUrl: "tracks/community/koselig.track",
                     thumbnail: "tracks/community/thumbnails/koselig.png"
                 }, {
-                    id: "a8913b96daceb5b615fe45aad2bb104e04eb7db140242934657111e1d1f55b89",
+                    id: "0f5e7f9d5bc9806f7ddf46c874909954aa72604299a7d1dd7e5b364080d9d63f",
                     group: "0.6.0",
                     trackMetadata: {
-                        name: "Sky Bound",
-                        author: "Zihcx",
+                        name: "4 - speeeedddd",
+                        author: "Cookedbyapringle",
                         lastModified: null
                     },
                     environment: TrackEnvironment.Summer,
                     trackUrl: "tracks/community/sky_bound.track",
                     thumbnail: "tracks/community/thumbnails/sky_bound.png"
                 }, {
-                    id: "66f43b2d2a17f3cee05a127040ca409795058510bd3d1ac7eee224512ec532f5",
+                    id: "05712abed8a0bf53c32c81489769705a7beb1cbd75f84400d50ef1d270fb416e",
                     group: "0.6.0",
                     trackMetadata: {
-                        name: "ShardMir",
-                        author: "Jurre",
+                        name: "5 - nosebonkkk",
+                        author: "Cookedbyapringle",
                         lastModified: null
                     },
                     environment: TrackEnvironment.Desert,
