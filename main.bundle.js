@@ -49028,6 +49028,7 @@
             s && (C.set(this, bo, c, "f"),
             c.classList.add("self")),
             c.addEventListener("click", ( () => {
+                if (!s) return;
                 C.get(this, eo, "f").playUIClick(),
                 C.get(this, wo, "f").some((e => e.recordingId == o)) ? (C.set(this, wo, C.get(this, wo, "f").filter((e => e.recordingId != o)), "f"),
                 c.classList.remove("selected"),
