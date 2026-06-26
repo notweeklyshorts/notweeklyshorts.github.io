@@ -49073,7 +49073,7 @@
             m.textContent = Qe(e),
             g.appendChild(m);
             const A = document.createElement("p");
-            A.textContent = "*secret*",
+            A.textContent = "SECRET",
             f.appendChild(A);
             const v = document.createElement("div");
             v.className = "right",
@@ -49387,41 +49387,8 @@
                     e.src = d,
                     b.appendChild(e)
                 }
-                const w = document.createElement("button");
                 let x;
-                switch (w.className = "button share",
-                w.innerHTML = '<img src="images/share.svg">',
-                w.addEventListener("click", ( () => {
-                    a.playUIClick(),
-                    C.get(this, Oo, "f").className = "hidden",
-                    (async () => {
-                        try {
-                            let e;
-                            if (e = c instanceof Function ? await c() : c,
-                            C.get(this, Xo, "f"))
-                                return;
-                            const n = e.toExportString(o);
-                            C.set(this, Qo, new TrackExportUI(n,( () => {
-                                C.get(this, Qo, "f")?.dispose(),
-                                C.set(this, Qo, null, "f"),
-                                C.get(this, Oo, "f").className = "track-info-ui"
-                            }
-                            ),null,t,a,u,s), "f")
-                        } catch (e) {
-                            if (C.get(this, Xo, "f"))
-                                return;
-                            if (!(e instanceof TrackLoadError))
-                                throw e;
-                            s.show(t.get("Failed to load track"), t.get("Ok"), ( () => {
-                                C.get(this, Oo, "f").className = "track-info-ui"
-                            }
-                            ))
-                        }
-                    }
-                    )()
-                }
-                )),
-                b.appendChild(w),
+                switch (/* SHARE BUTTON REMOVED */
                 l) {
                 case TrackEnvironment.Summer:
                     x = "images/summer.svg";
@@ -51145,19 +51112,7 @@
             v.appendChild(y),
             C.get(this, Nc, "f").appendChild(v),
             C.get(this, Dc, "f").push(v);
-            const b = document.createElement("button");
-            b.className = "button button-image",
-            b.innerHTML = '<img src="images/editor.svg">',
-            b.addEventListener("click", ( () => {
-                n.playUIClick(),
-                p()
-            }
-            ));
-            const w = document.createElement("p");
-            w.textContent = t.get("Editor"),
-            b.appendChild(w),
-            C.get(this, Nc, "f").appendChild(b),
-            C.get(this, Dc, "f").push(b);
+            /* EDITOR BUTTON REMOVED */
             const x = document.createElement("button");
             x.className = "button button-image",
             x.innerHTML = '<img src="images/settings.svg">',
@@ -51183,34 +51138,7 @@
             x.appendChild(S),
             C.get(this, Nc, "f").appendChild(x),
             C.get(this, Dc, "f").push(x);
-            const k = document.createElement("button");
-            k.className = "button button-image",
-            k.innerHTML = '<img src="images/multiplayer.svg">',
-            k.addEventListener("click", ( () => {
-                n.playUIClick(),
-                C.get(this, vc, "m", qc).call(this),
-                C.get(this, vc, "m", Xc).call(this);
-                "RTCPeerConnection"in window ? d.show(t.get("Multiplayer is experimental!") + "\n\n" + t.get("You may experience connectivity issues or other problems."), t.get("Continue"), ( () => {
-                    C.set(this, Uc, new hc(n,t,s,l,h,o,c,d,( () => {
-                        C.get(this, Uc, "f")?.dispose(),
-                        C.set(this, Uc, null, "f"),
-                        C.get(this, vc, "m", Qc).call(this),
-                        C.get(this, vc, "m", Yc).call(this)
-                    }
-                    ),f), "f")
-                }
-                )) : d.show(t.get("WebRTC is not supported in this browser.") + "\n\n" + t.get("Please try another browser or device."), t.get("Ok"), ( () => {
-                    C.get(this, vc, "m", Qc).call(this),
-                    C.get(this, vc, "m", Yc).call(this)
-                }
-                ))
-            }
-            ));
-            const E = document.createElement("p");
-            E.textContent = t.get("Multiplayer"),
-            k.appendChild(E),
-            C.get(this, Nc, "f").appendChild(k),
-            C.get(this, Dc, "f").push(k);
+            /* MULTIPLAYER BUTTON REMOVED */
             const T = document.createElement("button");
             T.className = "button button-image",
             T.innerHTML = '<img src="images/play.svg">',
@@ -51284,6 +51212,30 @@
             C.get(this, Gc, "f").push(R),
             _();
             const P = o.getCurrentUserProfile();
+            {
+                const nickContainer = document.createElement("div");
+                nickContainer.style.cssText = "display:flex;align-items:center;gap:8px;padding:6px 10px;";
+                const nickLabel = document.createElement("span");
+                nickLabel.textContent = "Name:";
+                nickLabel.style.cssText = "color:var(--text-color);font-size:18px;white-space:nowrap;";
+                const nickInput = document.createElement("input");
+                nickInput.type = "text";
+                nickInput.value = P.nickname ?? "";
+                nickInput.maxLength = 32;
+                nickInput.spellcheck = false;
+                nickInput.autocomplete = "off";
+                nickInput.style.cssText = "flex:1;background:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-size:18px;padding:4px 8px;font-family:inherit;clip-path:polygon(3px 0,100% 0,calc(100% - 3px) 100%,0 100%);";
+                const saveNick = () => {
+                    const v = nickInput.value.trim();
+                    if (v.length > 0) o.setNickname(v);
+                };
+                nickInput.addEventListener("blur", saveNick);
+                nickInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { saveNick(); nickInput.blur(); } });
+                nickContainer.appendChild(nickLabel);
+                nickContainer.appendChild(nickInput);
+                C.get(this, Bc, "f").appendChild(nickContainer);
+                C.get(this, Gc, "f").push(nickContainer);
+            }
             if (P.isVerifier) {
                 const e = document.createElement("button");
                 e.className = "button",
@@ -51441,7 +51393,13 @@
                 }
                 ))),
                 C.get(this, Ec, "f").src = "images/logo.svg",
-                C.get(this, kc, "f").appendChild(C.get(this, Ec, "f")),
+                C.get(this, kc, "f").appendChild(C.get(this, Ec, "f"));
+                {
+                    const subtitle = document.createElement("div");
+                    subtitle.textContent = "CHANGE YOUR USERNAME IN THE GARAGE TO BE RANKED",
+                    subtitle.style.cssText = "margin:18px auto 0 auto;max-width:900px;font-size:22px;font-weight:bold;color:var(--text-color);text-align:center;letter-spacing:1px;",
+                    C.get(this, kc, "f").appendChild(subtitle)
+                }
                 _o() || Ro() ? (C.set(this, zc, document.createElement("div"), "f"),
                 C.get(this, zc, "f").className = "warning-message",
                 _o() && C.get(this, zc, "f").classList.add("modded"),
@@ -51451,7 +51409,7 @@
                 {
                     C.set(this, Tc, document.createElement("a"), "f"),
                     C.get(this, Tc, "f").className = "discord-link",
-                    C.get(this, Tc, "f").href = "https://www.kodub.com/discord/polytrack",
+                    C.get(this, Tc, "f").href = "https://discord.gg/v5xrXSfvtE",
                     C.get(this, Tc, "f").target = "_blank",
                     C.get(this, kc, "f").appendChild(C.get(this, Tc, "f"));
                     const e = document.createElement("img");
@@ -51461,7 +51419,12 @@
                     }
                     ))),
                     e.src = "images/discord.svg",
-                    C.get(this, Tc, "f").appendChild(e)
+                    e.style.cssText = "height:70px;",
+                    C.get(this, Tc, "f").appendChild(e);
+                    const discordLabel = document.createElement("span");
+                    discordLabel.textContent = "Join Discord",
+                    discordLabel.style.cssText = "display:block;color:var(--text-color);font-size:20px;text-align:center;margin-top:4px;",
+                    C.get(this, Tc, "f").appendChild(discordLabel)
                 }
                 C.set(this, Mc, document.createElement("div"), "f"),
                 C.get(this, Mc, "f").className = "info",
