@@ -51154,6 +51154,197 @@
             T.appendChild(M),
             C.get(this, Nc, "f").appendChild(T),
             C.get(this, Dc, "f").push(T),
+            (() => {
+                // ── STANDINGS BUTTON ──
+                const stBtn = document.createElement("button");
+                stBtn.className = "button button-image";
+                stBtn.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;";
+                const stLabel = document.createElement("p");
+                stLabel.textContent = "Standings";
+                stLabel.style.cssText = "font-size:22px;margin:0;padding:0;";
+                stBtn.appendChild(stLabel);
+                stBtn.addEventListener("click", () => {
+                    n.playUIClick();
+                    document.getElementById("nsws-standings-overlay").style.display = "flex";
+                    window.__nswsStandingsLoad && window.__nswsStandingsLoad();
+                });
+                C.get(this, Nc, "f").appendChild(stBtn);
+                C.get(this, Dc, "f").push(stBtn);
+
+                // ── STANDINGS OVERLAY ──
+                if (!document.getElementById("nsws-standings-overlay")) {
+                    const LB_TRACKS = [
+                        { id:"8a12fc3f6ae6bc9fb3d60b8fd56944478e5634f14221ecd91a2a4177106b531a", name:"1 - race" },
+                        { id:"2909df017040a62807141541da1ec9c2839437bd75a6f882e1609c71ae461b5c", name:"2 - trek" },
+                        { id:"84e8bca12bc7a171e44d4bf377c4abe130a4f2427d8e24b11f62334326deaa3b", name:"3 - maze" },
+                        { id:"0f5e7f9d5bc9806f7ddf46c874909954aa72604299a7d1dd7e5b364080d9d63f", name:"4 - speeeedddd" },
+                        { id:"05712abed8a0bf53c32c81489769705a7beb1cbd75f84400d50ef1d270fb416e", name:"5 - nosebonkkk" },
+                    ];
+                    const LOG102 = Math.log10(2);
+                    const stCalcPts = r => r ? Math.round(20000 / Math.pow(r, LOG102)) : 0;
+
+                    // Overlay backdrop
+                    const overlay = document.createElement("div");
+                    overlay.id = "nsws-standings-overlay";
+                    overlay.style.cssText = [
+                        "display:none",
+                        "position:fixed",
+                        "left:0","top:0","width:100%","height:100%",
+                        "z-index:9999",
+                        "align-items:center",
+                        "justify-content:center",
+                        "background:rgba(5,10,25,0.92)",
+                        "backdrop-filter:blur(6px)",
+                        "-webkit-backdrop-filter:blur(6px)",
+                    ].join(";");
+
+                    // Panel
+                    const panel = document.createElement("div");
+                    panel.style.cssText = [
+                        "width:min(820px,94vw)",
+                        "height:min(780px,90vh)",
+                        "background:rgba(12,20,50,0.97)",
+                        "border:1px solid rgba(80,130,230,0.35)",
+                        "border-radius:12px",
+                        "display:flex",
+                        "flex-direction:column",
+                        "overflow:hidden",
+                        "font-family:inherit",
+                    ].join(";");
+
+                    // Header bar
+                    const panelHdr = document.createElement("div");
+                    panelHdr.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:22px 28px 16px;border-bottom:1px solid rgba(80,130,230,0.2);flex-shrink:0;";
+                    const panelTitle = document.createElement("span");
+                    panelTitle.textContent = "Week 1 — Standings";
+                    panelTitle.style.cssText = "font-size:28px;font-weight:700;color:#e8eaf6;letter-spacing:1px;";
+                    const hdrRight = document.createElement("div");
+                    hdrRight.style.cssText = "display:flex;align-items:center;gap:14px;";
+                    const updatedEl = document.createElement("span");
+                    updatedEl.id = "nsws-st-updated";
+                    updatedEl.style.cssText = "font-size:13px;color:rgba(120,160,220,0.6);letter-spacing:1px;";
+                    const closeBtn = document.createElement("button");
+                    closeBtn.textContent = "✕";
+                    closeBtn.style.cssText = "background:none;border:1px solid rgba(80,130,230,0.3);color:rgba(180,200,255,0.7);font-size:18px;cursor:pointer;border-radius:6px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;";
+                    closeBtn.addEventListener("click", () => { overlay.style.display = "none"; });
+                    hdrRight.appendChild(updatedEl);
+                    hdrRight.appendChild(closeBtn);
+                    panelHdr.appendChild(panelTitle);
+                    panelHdr.appendChild(hdrRight);
+                    panel.appendChild(panelHdr);
+
+                    // Column headers
+                    const colHdr = document.createElement("div");
+                    colHdr.style.cssText = "display:grid;grid-template-columns:56px 1fr repeat(6,88px);gap:0;padding:10px 28px;border-bottom:1px solid rgba(80,130,230,0.15);flex-shrink:0;";
+                    const colLabels = ["#", "Player", "Total", "Race", "Trek", "Maze", "Speed", "Nose"];
+                    colLabels.forEach((lbl, i) => {
+                        const c = document.createElement("span");
+                        c.textContent = lbl;
+                        c.style.cssText = "font-size:13px;letter-spacing:2px;color:rgba(120,160,220,0.55);font-weight:700;text-align:" + (i <= 1 ? "left" : "right") + ";";
+                        colHdr.appendChild(c);
+                    });
+                    panel.appendChild(colHdr);
+
+                    // Scrollable list
+                    const listWrap = document.createElement("div");
+                    listWrap.id = "nsws-st-list";
+                    listWrap.style.cssText = "overflow-y:auto;flex:1;padding:8px 20px 16px;";
+                    // Custom scrollbar styling via a style tag
+                    const scrollStyle = document.createElement("style");
+                    scrollStyle.textContent = "#nsws-st-list::-webkit-scrollbar{width:6px}#nsws-st-list::-webkit-scrollbar-track{background:transparent}#nsws-st-list::-webkit-scrollbar-thumb{background:rgba(80,130,230,0.3);border-radius:3px}";
+                    document.head.appendChild(scrollStyle);
+                    panel.appendChild(listWrap);
+
+                    overlay.appendChild(panel);
+                    document.body.appendChild(overlay);
+
+                    // Close on backdrop click
+                    overlay.addEventListener("click", e => { if (e.target === overlay) overlay.style.display = "none"; });
+
+                    let stLoaded = false;
+                    async function stLoad() {
+                        if (stLoaded) return;
+                        listWrap.innerHTML = '<div style="color:rgba(150,180,255,0.4);font-size:20px;padding:30px 8px;">Loading standings...</div>';
+                        updatedEl.textContent = "";
+                        try {
+                            const results = await Promise.all(LB_TRACKS.map(t =>
+                                fetch("https://ptproxy.cwcinc.dev/v6/leaderboard?version=0.6.2&trackId=" + t.id + "&skip=0&amount=500&onlyVerified=false")
+                                    .then(r => r.json())
+                            ));
+                            const maps = results.map(data => {
+                                const entries = Array.isArray(data) ? data : (data.entries || []);
+                                const m = {};
+                                entries.forEach((e, idx) => {
+                                    const nm = (e.nickname || e.name || "").trim();
+                                    if (nm && !(nm in m)) m[nm] = idx + 1;
+                                });
+                                return m;
+                            });
+                            const allNicks = new Set();
+                            maps.forEach(m => Object.keys(m).forEach(nm => allNicks.add(nm)));
+                            const pts = {};
+                            allNicks.forEach(nick => {
+                                let total = 0;
+                                maps.forEach(m => { if (m[nick]) total += stCalcPts(m[nick]); });
+                                pts[nick] = total;
+                            });
+                            const sorted = Object.entries(pts).sort((a,b) => b[1]-a[1]);
+
+                            const MEDAL_COL = ["#FFD700","#C0C0C0","#CD7F32"];
+                            listWrap.innerHTML = "";
+                            sorted.forEach(([nick, p], i) => {
+                                const row = document.createElement("div");
+                                const isTop3 = i < 3;
+                                row.style.cssText = [
+                                    "display:grid",
+                                    "grid-template-columns:56px 1fr repeat(6,88px)",
+                                    "gap:0",
+                                    "padding:11px 8px",
+                                    "border-radius:6px",
+                                    "margin-bottom:3px",
+                                    "align-items:center",
+                                    isTop3 ? "background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.1);" : "border:1px solid transparent;",
+                                ].join(";");
+                                row.addEventListener("mouseover", () => { row.style.background = isTop3 ? "rgba(255,215,0,0.08)" : "rgba(80,130,230,0.07)"; });
+                                row.addEventListener("mouseout", () => { row.style.background = isTop3 ? "rgba(255,215,0,0.05)" : ""; });
+
+                                const rankEl = document.createElement("span");
+                                rankEl.textContent = i + 1;
+                                rankEl.style.cssText = "font-size:20px;font-weight:700;color:" + (isTop3 ? MEDAL_COL[i] : "rgba(120,150,200,0.6)") + ";";
+
+                                const nameEl = document.createElement("span");
+                                nameEl.textContent = nick;
+                                nameEl.style.cssText = "font-size:20px;font-weight:" + (isTop3?"700":"500") + ";color:" + (i===0?"#ffe87a":i===1?"#e8e8e8":i===2?"#e8c090":"rgba(210,225,255,0.85)") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;";
+
+                                const totalEl = document.createElement("span");
+                                totalEl.textContent = p.toLocaleString();
+                                totalEl.style.cssText = "font-size:20px;font-weight:700;color:" + (isTop3 ? MEDAL_COL[i] : "rgba(180,210,255,0.9)") + ";text-align:right;font-variant-numeric:tabular-nums;";
+
+                                row.appendChild(rankEl);
+                                row.appendChild(nameEl);
+                                row.appendChild(totalEl);
+
+                                maps.forEach(m => {
+                                    const r = m[nick];
+                                    const cell = document.createElement("span");
+                                    cell.textContent = r ? "+" + stCalcPts(r).toLocaleString() : "—";
+                                    cell.style.cssText = "font-size:16px;color:" + (r ? "rgba(160,200,255,0.7)" : "rgba(80,100,140,0.4)") + ";text-align:right;font-variant-numeric:tabular-nums;";
+                                    row.appendChild(cell);
+                                });
+
+                                listWrap.appendChild(row);
+                            });
+
+                            if (!sorted.length) listWrap.innerHTML = '<div style="color:rgba(150,180,255,0.4);font-size:20px;padding:30px 8px;">No runs yet.</div>';
+                            updatedEl.textContent = "Updated " + new Date().toLocaleTimeString();
+                            stLoaded = true;
+                        } catch(e) {
+                            listWrap.innerHTML = '<div style="color:rgba(255,120,120,0.7);font-size:18px;padding:20px 8px;">Failed to load standings.</div>';
+                        }
+                    }
+                    window.__nswsStandingsLoad = stLoad;
+                }
+            })(),
             window.electron) {
                 const e = document.createElement("button");
                 e.className = "button",
