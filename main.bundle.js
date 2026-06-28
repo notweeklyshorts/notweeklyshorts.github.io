@@ -49074,7 +49074,6 @@
             g.appendChild(m);
             const A = document.createElement("p");
             A.textContent = "SECRET",
-            A.style.cssText = "font-size:calc(1em + 2px);",
             f.appendChild(A);
             const v = document.createElement("div");
             v.className = "right",
