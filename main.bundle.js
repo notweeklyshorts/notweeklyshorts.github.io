@@ -49083,7 +49083,7 @@
             g.appendChild(m);
             const A = document.createElement("p");
             A.textContent = "SECRET",
-            A.style.cssText = "opacity:0.9;",
+            A.style.cssText = "opacity:0.83;",
             f.appendChild(A);
             const v = document.createElement("div");
             v.className = "right",
@@ -51442,22 +51442,8 @@
                 C.get(this, Bc, "f").appendChild(t),
                 C.get(this, Gc, "f").push(t)
             }
-            const I = document.createElement("a");
-            I.className = "button right",
-            I.href = "https://www.kodub.com/terms/polytrack",
-            I.target = "_blank",
-            I.innerHTML = '<img className="button-icon" src="images/gavel.svg">',
-            I.appendChild(document.createTextNode(" " + C.get(this, yc, "f").get("Terms of Service"))),
-            C.get(this, Bc, "f").appendChild(I),
-            C.get(this, Gc, "f").push(I);
-            const L = document.createElement("a");
-            L.className = "button right",
-            L.href = "https://www.kodub.com/privacy/polytrack",
-            L.target = "_blank",
-            L.innerHTML = '<img className="button-icon" src="images/paper.svg">',
-            L.appendChild(document.createTextNode(" " + C.get(this, yc, "f").get("Privacy Policy"))),
-            C.get(this, Bc, "f").appendChild(L),
-            C.get(this, Gc, "f").push(L)
+            /* TOS BUTTON REMOVED */
+            /* PRIVACY POLICY BUTTON REMOVED */
         }
         ,
         Kc = function(e) {
@@ -51497,7 +51483,7 @@
                 d.innerHTML = "Not the official version. &nbsp;<a href=\"https://www.crazygames.com/game/polytrack\" target=\"_blank\" style=\"color:rgba(120,170,255,0.7);text-decoration:underline;\">Play official here</a>";
                 document.body.appendChild(d);
                 const ds = document.createElement("style");
-                ds.textContent = "body:has(.track-info-ui) #nsws-disclaimer { display: none !important; }";
+                ds.textContent = "body:has(.track-info-ui) #nsws-disclaimer, body:has(.game-ui) #nsws-disclaimer { display: none !important; }";
                 document.head.appendChild(ds);
             }
         }
