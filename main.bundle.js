@@ -40451,10 +40451,19 @@
                 )),
                 m.appendChild(A),
                 C.get(this, Yn, "f").push(A),
-                C.set(this, Jn, null, "f"),
                 null == s) {
-                    /* WATCH BUTTON IN RESULT SCREEN REMOVED */
-                    if (false,
+                    const e = document.createElement("button");
+                    if (e.className = "button",
+                    e.innerHTML = '<img class="button-icon" src="images/preview.svg"> ',
+                    e.append(document.createTextNode(n.get("Watch"))),
+                    e.addEventListener("click", ( () => {
+                        t.playUIClick(),
+                        l()
+                    }
+                    )),
+                    m.appendChild(e),
+                    C.get(this, Yn, "f").push(e),
+                    C.set(this, Jn, e, "f"),
                     null != c) {
                         const e = document.createElement("button");
                         e.className = "button",
@@ -48977,7 +48986,7 @@
                 if (!n.isCancelled) {
                     const i = 20
                       , r = C.get(this, Ao, "f") * i;
-                    C.get(this, $s, "f").getLeaderboard(C.get(this, to, "f").getCurrentUserProfile().tokenHash, C.get(this, Ys, "f"), r, i, C.get(this, mo, "f")).then(( ({total: a, entries: s, userEntry: o}) => {
+                    C.get(this, $s, "f").getLeaderboard(C.get(this, to, "f").getCurrentUserProfile().tokenHash, C.get(this, Ys, "f"), r, i, false).then(( ({total: a, entries: s, userEntry: o}) => {
                         if (!n.isCancelled) {
                             C.set(this, vo, Math.ceil(a / i), "f"),
                             C.get(this, Xs, "m", Eo).call(this),
@@ -49420,8 +49429,27 @@
                 C.set(this, Ho, document.createElement("div"), "f"),
                 C.get(this, Ho, "f").className = "opponents-container",
                 C.get(this, Wo, "f").appendChild(C.get(this, Ho, "f")),
-                /* WATCH BUTTON REMOVED */
-                C.set(this, jo, null, "f"),
+                C.set(this, jo, document.createElement("button"), "f"),
+                C.get(this, jo, "f").className = "button watch",
+                C.get(this, jo, "f").innerHTML = '<img src="images/preview.svg">',
+                C.get(this, jo, "f").disabled = !0,
+                C.get(this, jo, "f").prepend(document.createTextNode(t.get("Watch"))),
+                C.get(this, jo, "f").addEventListener("click", ( () => {
+                    a.playUIClick();
+                    const e = r.getRecord(i.profileSlot, h);
+                    if (null != e) {
+                        const t = i.getCurrentUserProfile();
+                        A([{
+                            recording: e.recording,
+                            carStyle: t.carStyle,
+                            nickname: t.nickname,
+                            time: e.time,
+                            isSelf: !0
+                        }])
+                    }
+                }
+                )),
+                C.get(this, Wo, "f").appendChild(C.get(this, jo, "f")),
                 C.get(this, Uo, "m", $o).call(this);
                 const L = document.createElement("button");
                 L.className = "button play",
@@ -51152,7 +51180,7 @@
                         { id:"68dedebe6eeed293775cc8593ad14e6070a0529dbc7acceec7441c844e41838e", name:"2 - Twisty Twasty" },
                         { id:"9af28cca21b8eeb207055536883512df85c6ab31ed380058fec290b6f765e469", name:"3 - A Ternary Trio" },
                         { id:"7216b418fb57f0a4b2c2f8083caaa1fc1e54563e9cda00bd85bdea61075d7db2", name:"4 - faht" },
-                        { id:"270e3c35316ca8fe28fbd87942f69889988179afbfb645206e2f4f49c437926b", name:"5 - antiAO8" },
+                        { id:"83aca4294632060cb48dd912799fb5dbfc117d01cda572766c67482d49a5405a", name:"5 - antiAO8" },
                     ];
                     const LOG102 = Math.log10(2);
                     const stCalcPts = r => r ? Math.round(20000 / Math.pow(r, LOG102)) : 0;
@@ -51456,7 +51484,14 @@
             C.get(this, Nc, "f").classList.remove("hidden"),
             C.get(this, Bc, "f").classList.remove("hidden"),
             null != C.get(this, Tc, "f") && (C.get(this, Tc, "f").className = "discord-link"),
-            C.get(this, Mc, "f").className = "info"
+            C.get(this, Mc, "f").className = "info";
+            if (!document.getElementById("nsws-disclaimer")) {
+                const d = document.createElement("div");
+                d.id = "nsws-disclaimer";
+                d.style.cssText = "position:fixed;top:10px;right:14px;z-index:9998;font-size:11px;color:rgba(200,210,255,0.5);text-align:right;pointer-events:auto;line-height:1.5;font-family:inherit;";
+                d.innerHTML = "Not the official version. &nbsp;<a href=\"https://www.crazygames.com/game/polytrack\" target=\"_blank\" style=\"color:rgba(120,170,255,0.7);text-decoration:underline;\">Play official here</a>";
+                document.body.appendChild(d);
+            }
         }
         ,
         Jc = function() {
@@ -52207,7 +52242,7 @@
                     trackUrl: "tracks/community/sky_bound.track",
                     thumbnail: "tracks/community/thumbnails/sky_bound.png"
                 }, {
-                    id: "270e3c35316ca8fe28fbd87942f69889988179afbfb645206e2f4f49c437926b",
+                    id: "83aca4294632060cb48dd912799fb5dbfc117d01cda572766c67482d49a5405a",
                     group: "Week 2",
                     trackMetadata: {
                         name: "5 - antiAO8",
@@ -54277,7 +54312,7 @@
                 ))
             }
             getLeaderboardUserEntry(e, t, n) {
-                const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.2&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=" + n.toString(); window.__nswsUserToken = encodeURIComponent(e);
+                const i = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboardUserEntry?version=0.6.2&trackId=" + t + "&userTokenHash=" + encodeURIComponent(e) + "&onlyVerified=false"; window.__nswsUserToken = encodeURIComponent(e);
                 return new Promise(( (e, t) => {
                     const n = new XMLHttpRequest;
                     n.timeout = C.get(this, wu, "f"),
@@ -54400,7 +54435,7 @@
                         else {
                             const o = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard";
                             let d = "version=0.6.2&userToken=" + encodeURIComponent(e) + "&nickname=" + encodeURIComponent(t) + (null == n ? "" : "&countryCode=" + encodeURIComponent(n)) + "&carStyle=" + i.serialize() + "&trackId=" + r + "&frames=" + s.numberOfFrames.toString() + "&recording=" + h;
-                            null != a && (d += "&onlyVerified=" + a.toString());
+                            null != a && (d += "&onlyVerified=false");
                             const u = new XMLHttpRequest;
                             u.timeout = C.get(this, wu, "f"),
                             u.overrideMimeType("text/plain"),
