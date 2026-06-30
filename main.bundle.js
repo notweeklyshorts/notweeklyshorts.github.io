@@ -51507,10 +51507,14 @@ window.__nswsDecrypt = async function(b64Data) {
                 const d = document.createElement("div");
                 d.id = "nsws-disclaimer";
                 d.style.cssText = "position:fixed;top:10px;right:14px;z-index:9998;font-size:11px;color:rgba(200,210,255,0.5);text-align:right;pointer-events:auto;line-height:1.5;font-family:inherit;";
+                new MutationObserver(() => {
+                    const nc = document.querySelector('.main-buttons-container');
+                    if (nc) d.style.visibility = nc.classList.contains('hidden') ? 'hidden' : 'visible';
+                }).observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
                 d.innerHTML = "Not the official version. &nbsp;<a href=\"https://www.crazygames.com/game/polytrack\" target=\"_blank\" style=\"color:rgba(120,170,255,0.7);text-decoration:underline;\">Play official here</a>";
                 document.body.appendChild(d);
                 const ds = document.createElement("style");
-                ds.textContent = "body:has(.track-info-ui) #nsws-disclaimer, body:has(.game-ui) #nsws-disclaimer { display: none !important; }";
+                ds.textContent = "body:has(.track-info-ui) #nsws-disclaimer, body:has(.game-ui) #nsws-disclaimer, body:has(.settings-menu-ui) #nsws-disclaimer { display: none !important; } #nsws-disclaimer { pointer-events: auto; }";
                 document.head.appendChild(ds);
             }
         }
