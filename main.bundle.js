@@ -49007,8 +49007,12 @@ window.__nswsDecrypt = async function(b64Data) {
                 if (!n.isCancelled) {
                     const i = 20
                       , r = C.get(this, Ao, "f") * i;
-                    C.get(this, $s, "f").getLeaderboard(C.get(this, to, "f").getCurrentUserProfile().tokenHash, C.get(this, Ys, "f"), r, i, false).then(( ({total: a, entries: s, userEntry: o}) => {
+                    C.get(this, $s, "f").getLeaderboard(C.get(this, to, "f").getCurrentUserProfile().tokenHash, C.get(this, Ys, "f"), r, i, false).then(( ({total: a, entries: __nswsRawEntries, userEntry: o}) => {
                         if (!n.isCancelled) {
+                            const __nswsBanlist = (window.__nswsLeaderboardBanlist || []).map(b => b.trim().toLowerCase());
+                            const s = __nswsBanlist.length
+                                ? __nswsRawEntries.filter(e => !__nswsBanlist.includes((e.nickname || "").trim().toLowerCase()))
+                                : __nswsRawEntries;
                             C.set(this, vo, Math.ceil(a / i), "f"),
                             C.get(this, Xs, "m", Eo).call(this),
                             C.get(this, oo, "f").textContent = C.get(this, Zs, "f").get("{0} players", [Mo(a)]),
