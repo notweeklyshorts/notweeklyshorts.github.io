@@ -56982,9 +56982,19 @@ window.__nswsDecrypt = async function(b64Data) {
                 if (finishTime) handleFinish(trackId, finishTime.time);
             }
         } else if (!finished) {
+            // Restarting the run (key, button, whatever) un-finishes the player state before
+            // trackId ever changes, so this is where a restart needs to kill the banner too.
+            if (wasFinished) clearActiveBanner();
             wasFinished = false;
         }
     }
+
+    // Pressing Escape (pause menu) doesn't change the track or un-finish the run, so neither
+    // of the checks in update() above catches it. Listen for it directly so the banner dies
+    // the instant the player backs out, instead of lingering over the pause menu.
+    document.addEventListener("keydown", function (e) {
+        if (e.code === "Escape" && activeBanner) clearActiveBanner();
+    }, true);
 
     window.__nswsSetMedalsEnabled = function (v) {
         enabled = !!v;
