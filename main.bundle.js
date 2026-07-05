@@ -56733,8 +56733,28 @@ window.__nswsDecrypt = async function(b64Data) {
         return record ? { panel: panel, record: record } : null;
     }
 
+    // Tracks whatever medal banner is currently on screen (native-hijack lines or the
+    // standalone popup) so it can be killed instantly on track exit instead of only ever
+    // being cleaned up by its own animation timeout.
+    var activeBanner = null;
+    function clearActiveBanner() {
+        if (!activeBanner) return;
+        if (activeBanner.timeoutId != null) clearTimeout(activeBanner.timeoutId);
+        if (activeBanner.type === "popup") {
+            activeBanner.el.remove();
+        } else if (activeBanner.type === "native") {
+            activeBanner.extras.forEach(function (node) {
+                if (node) node.remove();
+            });
+            // Put the record back the way the base game expects to find it between runs.
+            activeBanner.record.classList.add("hidden");
+        }
+        activeBanner = null;
+    }
+
     function announceMedal(tier, placement, finishSeconds, isNewBest) {
         injectCSS();
+        clearActiveBanner();
         var subText = medalSubText(tier, placement, finishSeconds);
         var badgeText = isNewBest ? "New best medal on this track!" : null;
         var native = findNativeRecordBanner();
@@ -56751,8 +56771,9 @@ window.__nswsDecrypt = async function(b64Data) {
             sub.textContent = subText;
             native.panel.insertBefore(sub, record.nextSibling);
             var after = sub;
+            var badgeLine = null;
             if (badgeText) {
-                var badgeLine = document.createElement("div");
+                badgeLine = document.createElement("div");
                 badgeLine.className = "nsws-medal-badgeline";
                 badgeLine.textContent = badgeText;
                 native.panel.insertBefore(badgeLine, sub.nextSibling);
@@ -56764,6 +56785,7 @@ window.__nswsDecrypt = async function(b64Data) {
                     if (badgeText) after.classList.add("show");
                 });
             });
+            activeBanner = { type: "native", record: record, extras: [sub, badgeLine] };
             return;
         }
         var el = document.createElement("div");
@@ -56792,9 +56814,11 @@ window.__nswsDecrypt = async function(b64Data) {
                 el.classList.add("show");
             });
         });
-        setTimeout(function () {
+        var timeoutId = setTimeout(function () {
             el.remove();
+            if (activeBanner && activeBanner.el === el) activeBanner = null;
         }, 3500);
+        activeBanner = { type: "popup", el: el, timeoutId: timeoutId };
     }
 
     function buildMedalBadgeEl(trackId) {
@@ -56912,19 +56936,25 @@ window.__nswsDecrypt = async function(b64Data) {
                 var store = loadStore();
                 var prev = store[trackId];
                 var isNewBest = !prev || TIER_RANK[tier.id] > TIER_RANK[prev.tier];
-                if (isNewBest) {
-                    var percentile = placement ? placement.position / placement.total : null;
-                    store[trackId] = {
-                        tier: tier.id,
-                        percentile: percentile,
-                        rank: placement ? placement.position : null,
-                        total: placement ? placement.total : null,
-                        time: finishSeconds,
-                        at: AT_TIMES[trackId] ?? null,
-                        ts: Date.now()
-                    };
-                    saveStore(store);
-                }
+                // Only a genuine tier improvement counts as a "new medal". A faster PB that
+                // doesn't change your tier (e.g. still Gold) should leave the game's normal
+                // PB banner alone instead of getting hijacked into the medal banner.
+                if (!isNewBest) return;
+                var percentile = placement ? placement.position / placement.total : null;
+                store[trackId] = {
+                    tier: tier.id,
+                    percentile: percentile,
+                    rank: placement ? placement.position : null,
+                    total: placement ? placement.total : null,
+                    time: finishSeconds,
+                    at: AT_TIMES[trackId] ?? null,
+                    ts: Date.now()
+                };
+                saveStore(store);
+                // The placement fetch above can settle after the player has already left this
+                // track (menu, garage, a different track). Don't pop up a banner for a track
+                // that's no longer on screen.
+                if (trackId !== currentTrackId) return;
                 announceMedal(tier, placement, finishSeconds, isNewBest);
             });
         }, SUBMIT_DELAY_MS);
@@ -56937,6 +56967,9 @@ window.__nswsDecrypt = async function(b64Data) {
         var track = typeof window.__getCurrentTrack === "function" ? window.__getCurrentTrack() : null;
         var trackId = track && typeof track.getId === "function" ? track.getId() : null;
         if (trackId !== currentTrackId) {
+            // Leaving/changing track: instantly kill any medal banner still showing rather
+            // than letting it keep playing over the menu/garage.
+            clearActiveBanner();
             currentTrackId = trackId;
             wasFinished = false;
         }
