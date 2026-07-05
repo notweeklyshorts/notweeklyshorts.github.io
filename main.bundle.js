@@ -56660,6 +56660,67 @@ window.__nswsDecrypt = async function(b64Data) {
         });
     }
 
+    // Shares the same banlist that index.html uses to hide banned players from the
+    // leaderboard/standings displays, so a banned player's #1 time never blocks a real
+    // world-record announcement for anyone else.
+    function isNicknameBanned(nickname) {
+        var banlist = (window.__nswsLeaderboardBanlist || []).map(function (n) {
+            return String(n).trim().toLowerCase();
+        });
+        if (!banlist.length) return false;
+        return banlist.indexOf(String(nickname || "").trim().toLowerCase()) !== -1;
+    }
+
+    // Fetches the nicknames of the top `count` leaderboard entries (i.e. everyone ranked
+    // above the player). Returns null on fetch failure so callers can fail safe.
+    function fetchTopNicknames(trackId, count) {
+        if (!count || count <= 0) return Promise.resolve([]);
+        var url = LB_URL + "&trackId=" + encodeURIComponent(trackId) + "&skip=0&amount=" + count;
+        return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+        }).then(function (data) {
+            var entries = data && Array.isArray(data.entries) ? data.entries : [];
+            return entries.map(function (e) {
+                return e && typeof e.nickname === "string" ? e.nickname : "";
+            });
+        }).catch(function () {
+            return null;
+        });
+    }
+
+    // A run counts as a world record if nobody ranked above the player has a legitimate
+    // (non-banned) time. Rank #1 always qualifies; otherwise every entry above the player's
+    // position has to be a banned nickname.
+    function isWorldRecord(trackId, placement) {
+        if (!placement || !placement.position) return Promise.resolve(false);
+        if (placement.position === 1) return Promise.resolve(true);
+        return fetchTopNicknames(trackId, placement.position - 1).then(function (names) {
+            if (names == null || !names.length) return false;
+            for (var i = 0; i < names.length; i++) {
+                if (!isNicknameBanned(names[i])) return false;
+            }
+            return true;
+        });
+    }
+
+    // If this finish just triggered the game's own "NEW PERSONAL BEST" banner (not a medal
+    // banner, which takes precedence and is handled separately), check whether it's actually
+    // a world record once banned players are excluded, and relabel the banner if so.
+    function maybeAnnounceWorldRecord(trackId, placement) {
+        var native = findNativeRecordBanner();
+        if (!native) return;
+        var record = native.record;
+        if (!record.classList.contains("personal-best")) return;
+        isWorldRecord(trackId, placement).then(function (isWR) {
+            if (!isWR) return;
+            // Make sure the player hasn't already left, and this is still the same banner.
+            if (trackId !== currentTrackId) return;
+            if (!record.classList.contains("personal-best")) return;
+            record.textContent = "NEW WORLD RECORD!!!";
+        });
+    }
+
     function formatSeconds(sec) {
         return sec.toFixed(2) + "s";
     }
@@ -56932,30 +56993,37 @@ window.__nswsDecrypt = async function(b64Data) {
         setTimeout(function () {
             fetchSettledPlacement(trackId).then(function (placement) {
                 var tier = determineTier(trackId, finishSeconds, placement);
-                if (!tier) return;
-                var store = loadStore();
-                var prev = store[trackId];
-                var isNewBest = !prev || TIER_RANK[tier.id] > TIER_RANK[prev.tier];
-                // Only a genuine tier improvement counts as a "new medal". A faster PB that
-                // doesn't change your tier (e.g. still Gold) should leave the game's normal
-                // PB banner alone instead of getting hijacked into the medal banner.
-                if (!isNewBest) return;
-                var percentile = placement ? placement.position / placement.total : null;
-                store[trackId] = {
-                    tier: tier.id,
-                    percentile: percentile,
-                    rank: placement ? placement.position : null,
-                    total: placement ? placement.total : null,
-                    time: finishSeconds,
-                    at: AT_TIMES[trackId] ?? null,
-                    ts: Date.now()
-                };
-                saveStore(store);
-                // The placement fetch above can settle after the player has already left this
-                // track (menu, garage, a different track). Don't pop up a banner for a track
-                // that's no longer on screen.
+                if (tier) {
+                    var store = loadStore();
+                    var prev = store[trackId];
+                    var isNewBest = !prev || TIER_RANK[tier.id] > TIER_RANK[prev.tier];
+                    // Only a genuine tier improvement counts as a "new medal". A faster PB that
+                    // doesn't change your tier (e.g. still Gold) should leave the game's normal
+                    // PB banner alone instead of getting hijacked into the medal banner.
+                    if (isNewBest) {
+                        var percentile = placement ? placement.position / placement.total : null;
+                        store[trackId] = {
+                            tier: tier.id,
+                            percentile: percentile,
+                            rank: placement ? placement.position : null,
+                            total: placement ? placement.total : null,
+                            time: finishSeconds,
+                            at: AT_TIMES[trackId] ?? null,
+                            ts: Date.now()
+                        };
+                        saveStore(store);
+                        // The placement fetch above can settle after the player has already left
+                        // this track (menu, garage, a different track). Don't pop up a banner for
+                        // a track that's no longer on screen.
+                        if (trackId !== currentTrackId) return;
+                        announceMedal(tier, placement, finishSeconds, isNewBest);
+                        return;
+                    }
+                }
+                // No medal-tier upgrade this run (or no tier at all): the game's normal PB
+                // banner is left alone, but it might still deserve to say "world record" instead.
                 if (trackId !== currentTrackId) return;
-                announceMedal(tier, placement, finishSeconds, isNewBest);
+                maybeAnnounceWorldRecord(trackId, placement);
             });
         }, SUBMIT_DELAY_MS);
     }
