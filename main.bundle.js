@@ -29,6 +29,8 @@ window.__nswsDecrypt = async function(b64Data) {
     let watchClipFunction = () => {};
     let replayLoaderClass;
     let watchingClip;
+    let openClipsMenuOnLoad = false;
+    let runHasClip = false;
     (function() {
         var style = document.createElement("style");
         style.id = "_miso-clip-hud-css";
@@ -262,6 +264,10 @@ window.__nswsDecrypt = async function(b64Data) {
         }
     }
     function createClip() {
+        if (runHasClip) {
+            showRunAlreadyClippedNotification();
+            return;
+        }
         if (!frameClass || !recordingClass) {
             alert("No active run to clip.");
             return;
@@ -306,6 +312,7 @@ window.__nswsDecrypt = async function(b64Data) {
             createdAt: now
         };
         if (localAddClip(clip)) {
+            runHasClip = true;
             showClipSavedNotification();
         } else {
             alert("Failed to save clip: storage is full. Try deleting some old clips, then try again.");
@@ -316,6 +323,20 @@ window.__nswsDecrypt = async function(b64Data) {
         const el = document.createElement("div");
         el.className = "clip-saved-notification";
         el.textContent = "📹 Clip saved!";
+        document.body.appendChild(el);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            el.classList.add("show");
+        }));
+        setTimeout(() => {
+            el.classList.remove("show");
+            setTimeout(() => el.remove(), 300);
+        }, 1800);
+    }
+    function showRunAlreadyClippedNotification() {
+        injectClipCSS();
+        const el = document.createElement("div");
+        el.className = "clip-saved-notification";
+        el.textContent = "📹 Run already clipped";
         document.body.appendChild(el);
         requestAnimationFrame(() => requestAnimationFrame(() => {
             el.classList.add("show");
@@ -8238,7 +8259,8 @@ window.__nswsDecrypt = async function(b64Data) {
                     null == n)
                         l.set(this, ae, null != l.get(this, re, "f"), "f"),
                         l.set(this, se, new lt.A, "f"),
-                        frameClass = l.get(this, se, "f");
+                        frameClass = l.get(this, se, "f"),
+                        runHasClip = false;
                     else {
                         if (null != l.get(this, re, "f"))
                             throw new Error("Can't control car when recording is set");
@@ -52607,9 +52629,16 @@ window.__nswsDecrypt = async function(b64Data) {
                     p ? C.get(this, Rc, "f").show() : (C.get(this, vc, "m", Qc).call(this),
                     C.get(this, vc, "m", Yc).call(this))
                 }
-                ))) : p && (C.get(this, vc, "m", qc).call(this),
+                ))) : p ? (C.get(this, vc, "m", qc).call(this),
                 C.get(this, vc, "m", Xc).call(this),
-                C.get(this, Rc, "f").show()),
+                C.get(this, Rc, "f").show()) : openClipsMenuOnLoad && (openClipsMenuOnLoad = false,
+                C.get(this, vc, "m", qc).call(this),
+                C.get(this, vc, "m", Xc).call(this),
+                createClipsMenu(( () => {
+                    C.get(this, vc, "m", Qc).call(this),
+                    C.get(this, vc, "m", Yc).call(this)
+                }
+                ))),
                 C.set(this, Oc, new THREE.PerspectiveCamera(70,1,.5,RenderManager.maxViewDistance), "f"),
                 n.scene.add(C.get(this, Oc, "f")),
                 C.get(this, vc, "m", Zc).call(this)
@@ -57197,7 +57226,12 @@ window.__nswsDecrypt = async function(b64Data) {
                     P.pS(),
                     Q.dispose(),
                     Q = new Rf(f,v,e,t,n,A,m,h,l,b,r,i,( (e, t, n, i) => {
-                        W(e, t, n, i, null)
+                        if (watchingClip) {
+                            watchingClip = false,
+                            openClipsMenuOnLoad = true,
+                            M(!1, null)
+                        } else
+                            W(e, t, n, i, null)
                     }
                     )),
                     P.PM(),
