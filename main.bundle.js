@@ -51664,9 +51664,9 @@ window.__nswsDecrypt = async function(b64Data) {
             updateCommitMessage();
 
             const n = document.createElement("a");
-            n.href = "https://opengameart.org/content/sci-fi-theme-1",
+            n.href = "https://tobyfox.bandcamp.com/track/my-castle-town",
             n.target = "_blank",
-            n.textContent = 'OpenGameArt.org "Sci-fi Theme" by Maou (CC-BY 4.0)',
+            n.textContent = '"My Castle Town" (DELTARUNE Ch. 2 OST) by Toby Fox',
             C.get(this, Mc, "f").appendChild(n)
         }
         ,
