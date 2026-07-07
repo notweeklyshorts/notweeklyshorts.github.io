@@ -51632,10 +51632,37 @@ window.__nswsDecrypt = async function(b64Data) {
         Kc = function(e) {
             C.get(this, Mc, "f").innerHTML = "";
             const t = document.createElement("a");
-            t.href = "https://www.kodub.com",
+            t.id = "copyright-text",
+            t.href = "https://github.com/brinleyww/notsoweeklyshorts",
             t.target = "_blank",
-            t.textContent = "© 2026 kodub.com - " + e.get("Version") + " 0.6.0",
+            t.textContent = "©️2026 brinleyww - Loading...",
             C.get(this, Mc, "f").appendChild(t);
+
+            async function updateCommitMessage() {
+                const textElement = document.getElementById("copyright-text");
+
+                try {
+                    // 1. Fetch the latest commit info from GitHub API
+                    const response = await fetch("https://api.github.com/repos/brinleyww/notsoweeklyshorts/commits/main");
+
+                    if (!response.ok) throw new Error("Failed to fetch commit");
+
+                    const data = await response.json();
+
+                    // 2. Extract the first line of the commit message
+                    const rawMessage = data.commit.message;
+                    const firstLineMessage = rawMessage.split("\n")[0];
+
+                    // 3. Update the text on the screen
+                    textElement.textContent = `©️2026 brinleyww - ${firstLineMessage}`;
+                } catch (error) {
+                    console.error("Could not load latest commit message:", error);
+                    // Fallback text if offline or if API fails
+                    textElement.textContent = "©️2026 brinleyww";
+                }
+            }
+            updateCommitMessage();
+
             const n = document.createElement("a");
             n.href = "https://opengameart.org/content/sci-fi-theme-1",
             n.target = "_blank",
