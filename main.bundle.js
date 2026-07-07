@@ -51399,16 +51399,36 @@ window.__nswsDecrypt = async function(b64Data) {
                             const nameEl = document.createElement("span");
                             nameEl.textContent = nick;
                             nameEl.style.cssText = "font-size:22px;font-weight:400;color:" + (i===0 ? "#FFD700" : "var(--text-color)") + ";display:block;overflow-x:hidden;overflow-y:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:8px;";
+                            let nameScrollTarget = 0;
+                            let nameScrollRaf = null;
+                            const nameScrollTo = (target, onDone) => {
+                                const maxScroll = Math.max(0, nameEl.scrollWidth - nameEl.clientWidth);
+                                nameScrollTarget = Math.max(0, Math.min(target, maxScroll));
+                                if (nameScrollRaf != null) cancelAnimationFrame(nameScrollRaf);
+                                const step = () => {
+                                    const current = nameEl.scrollLeft;
+                                    const diff = nameScrollTarget - current;
+                                    if (Math.abs(diff) < 0.5) {
+                                        nameEl.scrollLeft = nameScrollTarget;
+                                        nameScrollRaf = null;
+                                        if (onDone) onDone();
+                                        return;
+                                    }
+                                    nameEl.scrollLeft = current + diff * 0.25;
+                                    nameScrollRaf = requestAnimationFrame(step);
+                                };
+                                nameScrollRaf = requestAnimationFrame(step);
+                            };
                             nameEl.addEventListener("wheel", (e) => {
                                 if (nameEl.scrollWidth > nameEl.clientWidth) {
                                     e.preventDefault();
                                     nameEl.style.textOverflow = "clip";
-                                    nameEl.scrollLeft += e.deltaY;
+                                    const base = nameScrollRaf != null ? nameScrollTarget : nameEl.scrollLeft;
+                                    nameScrollTo(base + e.deltaY);
                                 }
                             }, { passive: false });
                             nameEl.addEventListener("mouseleave", () => {
-                                nameEl.scrollLeft = 0;
-                                nameEl.style.textOverflow = "ellipsis";
+                                nameScrollTo(0, () => { nameEl.style.textOverflow = "ellipsis"; });
                             });
 
                             const totalEl = document.createElement("span");
