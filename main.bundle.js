@@ -24,6 +24,534 @@ window.__nswsDecrypt = async function(b64Data) {
     return new TextDecoder().decode(decrypted);
 };
 ( () => {
+    let frameClass;
+    let recordingClass;
+    let watchClipFunction = () => {};
+    let replayLoaderClass;
+    let watchingClip;
+    const CLIPS_STORAGE_KEY = "miso_clips";
+    const CLIP_KEYBIND_STORAGE_KEY = "_clipKeyBind";
+    const DEFAULT_CLIP_KEYBIND = "KeyC";
+    function getClipKeyBind() {
+        try {
+            return localStorage.getItem(CLIP_KEYBIND_STORAGE_KEY) || DEFAULT_CLIP_KEYBIND;
+        } catch (e) {
+            return DEFAULT_CLIP_KEYBIND;
+        }
+    }
+    function setClipKeyBind(code) {
+        try {
+            localStorage.setItem(CLIP_KEYBIND_STORAGE_KEY, code);
+        } catch (e) {}
+    }
+    const AUTO_CLIP_PB_STORAGE_KEY = "_autoClipOnPersonalBest";
+    function getAutoClipOnPB() {
+        try {
+            return localStorage.getItem(AUTO_CLIP_PB_STORAGE_KEY) === "true";
+        } catch (e) {
+            return false;
+        }
+    }
+    function setAutoClipOnPB(enabled) {
+        try {
+            localStorage.setItem(AUTO_CLIP_PB_STORAGE_KEY, enabled ? "true" : "false");
+        } catch (e) {}
+    }
+    function formatClipKeyName(code) {
+        if (!code) return "—";
+        if (code.startsWith("Key")) return code.slice(3);
+        if (code.startsWith("Digit")) return code.slice(5);
+        return code.replace(/([a-z])([A-Z])/g, "$1 $2");
+    }
+    function formatClipDate(ms) {
+        try {
+            return new Date(ms).toLocaleString(undefined, {
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+                hour: "numeric",
+                minute: "2-digit"
+            });
+        } catch (e) {
+            return new Date(ms).toString();
+        }
+    }
+    function getTrackNameById(trackId) {
+        if (!trackId) return null;
+        try {
+            return window.__miso_getTrackName?.(trackId) ?? null;
+        } catch (e) {
+            return null;
+        }
+    }
+    function _bytesToBase64(bytes) {
+        let binary = "";
+        const chunkSize = 32768;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+    }
+    function _base64ToBytes(b64) {
+        const binary = atob(b64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+    function _clipRecordingBytes(clip) {
+        if (typeof clip.recordingBytes === "string") return _base64ToBytes(clip.recordingBytes);
+        if (Array.isArray(clip.recordingBytes)) return new Uint8Array(clip.recordingBytes);
+        return new Uint8Array(0);
+    }
+    function getAllClips() {
+        try {
+            const raw = localStorage.getItem(CLIPS_STORAGE_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(c => c && typeof c === "object" && c.id && c.recordingBytes != null && Number.isFinite(c.frames));
+        } catch (e) {
+            console.error("Failed to load clips", e);
+            return [];
+        }
+    }
+    function saveAllClips(clips) {
+        try {
+            localStorage.setItem(CLIPS_STORAGE_KEY, JSON.stringify(clips));
+            return true;
+        } catch (e) {
+            console.error("Failed to save clips", e);
+            return false;
+        }
+    }
+    function localAddClip(clip) {
+        const clips = getAllClips();
+        let id = clip.id;
+        const ids = new Set(clips.map(c => c.id));
+        while (ids.has(id)) id = id + "_1";
+        clip.id = id;
+        clips.push(clip);
+        return saveAllClips(clips);
+    }
+    function localDeleteClip(id) {
+        return saveAllClips(getAllClips().filter(c => c.id !== id));
+    }
+    function localRenameClip(id, newName) {
+        const clips = getAllClips();
+        const clip = clips.find(c => c.id === id);
+        if (!clip) return false;
+        clip.name = newName;
+        return saveAllClips(clips);
+    }
+    function toClipExport(clip) {
+        const pako = window.__clipPako?.Ay ?? window.__clipPako;
+        const nameBytes = (new TextEncoder).encode(clip.name ?? "");
+        const playerNameBytes = (new TextEncoder).encode(clip.playerName ?? clip.name ?? "");
+        const trackIdBytes = (new TextEncoder).encode(clip.trackId ?? "");
+        const carStyleBytes = (new TextEncoder).encode(clip.carStyle ?? "");
+        const recBytes = _clipRecordingBytes(clip);
+        const frameCount = clip.frames;
+        const totalLen = 1 + nameBytes.length + 1 + playerNameBytes.length + 1 + trackIdBytes.length + 1 + carStyleBytes.length + 4 + recBytes.length;
+        const buf = new Uint8Array(totalLen);
+        let pos = 0;
+        buf[pos++] = nameBytes.length;
+        buf.set(nameBytes, pos);
+        pos += nameBytes.length;
+        buf[pos++] = playerNameBytes.length;
+        buf.set(playerNameBytes, pos);
+        pos += playerNameBytes.length;
+        buf[pos++] = trackIdBytes.length;
+        buf.set(trackIdBytes, pos);
+        pos += trackIdBytes.length;
+        buf[pos++] = carStyleBytes.length;
+        buf.set(carStyleBytes, pos);
+        pos += carStyleBytes.length;
+        buf[pos++] = frameCount & 255;
+        buf[pos++] = frameCount >> 8 & 255;
+        buf[pos++] = frameCount >> 16 & 255;
+        buf[pos++] = frameCount >> 24 & 255;
+        buf.set(recBytes, pos);
+        const d1 = new pako.Deflate({
+            level: 9,
+            windowBits: 9
+        });
+        d1.push(buf, true);
+        const d2 = new pako.Deflate({
+            level: 9,
+            windowBits: 15
+        });
+        d2.push(d1.result, true);
+        let b64 = _bytesToBase64(d2.result).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+        return "ClipsMiso2" + b64;
+    }
+    function fromClipExport(str) {
+        try {
+            const isV2 = str.startsWith("ClipsMiso2");
+            const isV1 = !isV2 && str.startsWith("ClipsMiso1");
+            if (!isV2 && !isV1) return null;
+            const pako = window.__clipPako?.Ay ?? window.__clipPako;
+            let b64 = str.slice("ClipsMiso1".length).replace(/-/g, "+").replace(/_/g, "/");
+            const bytes = _base64ToBytes(b64);
+            const i1 = new pako.Inflate;
+            i1.push(bytes, true);
+            if (i1.err) return null;
+            const i2 = new pako.Inflate;
+            i2.push(i1.result, true);
+            if (i2.err) return null;
+            const buf = i2.result;
+            let pos = 0;
+            const nameLen = buf[pos++];
+            const name = (new TextDecoder).decode(buf.slice(pos, pos + nameLen));
+            pos += nameLen;
+            let playerName;
+            if (isV2) {
+                const playerNameLen = buf[pos++];
+                playerName = (new TextDecoder).decode(buf.slice(pos, pos + playerNameLen));
+                pos += playerNameLen;
+            } else {
+                playerName = name;
+            }
+            const trackIdLen = buf[pos++];
+            const trackId = (new TextDecoder).decode(buf.slice(pos, pos + trackIdLen));
+            pos += trackIdLen;
+            const carStyleLen = buf[pos++];
+            const carStyle = (new TextDecoder).decode(buf.slice(pos, pos + carStyleLen));
+            pos += carStyleLen;
+            const frames = buf[pos] | buf[pos + 1] << 8 | buf[pos + 2] << 16 | buf[pos + 3] << 24;
+            pos += 4;
+            const recBytes = buf.slice(pos);
+            return {
+                name: name,
+                playerName: playerName,
+                trackId: trackId,
+                carStyle: carStyle,
+                frames: frames,
+                recordingBytes: _bytesToBase64(recBytes)
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+    function createClip() {
+        if (!frameClass || !recordingClass) {
+            alert("No active run to clip.");
+            return;
+        }
+        const track = window.__getCurrentTrack?.();
+        if (!track) {
+            alert("No track loaded.");
+            return;
+        }
+        const pako = window.__clipPako?.Ay ?? window.__clipPako;
+        const serializedB64 = frameClass.serialize ? frameClass.serialize() : null;
+        if (!serializedB64) {
+            alert("Nothing recorded yet.");
+            return;
+        }
+        let b64 = serializedB64.replace(/-/g, "+").replace(/_/g, "/");
+        const compressedBytes = _base64ToBytes(b64);
+        const inf = new pako.Inflate;
+        inf.push(compressedBytes, true);
+        if (inf.err) {
+            alert("Failed to read recording.");
+            return;
+        }
+        const recordingBytes = inf.result;
+        const carStyle = recordingClass.getCarStyle?.()?.serialize?.() ?? "";
+        const frames = recordingClass.getTime?.()?.numberOfFrames ?? 0;
+        const trackId = track.getId?.() ?? "";
+        if (!Number.isSafeInteger(frames) || frames < 1) {
+            alert("No active run to clip.");
+            return;
+        }
+        const now = Date.now();
+        const playerName = window.__getPlayerNickname?.() || "Anonymous";
+        const clip = {
+            id: "clip_" + now,
+            name: formatClipDate(now),
+            playerName: playerName,
+            trackId: trackId,
+            carStyle: carStyle,
+            frames: frames,
+            recordingBytes: _bytesToBase64(recordingBytes),
+            createdAt: now
+        };
+        if (localAddClip(clip)) {
+            showClipSavedNotification();
+        } else {
+            alert("Failed to save clip: storage is full. Try deleting some old clips, then try again.");
+        }
+    }
+    function showClipSavedNotification() {
+        injectClipCSS();
+        const el = document.createElement("div");
+        el.className = "clip-saved-notification";
+        el.textContent = "📹 Clip saved!";
+        document.body.appendChild(el);
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            el.classList.add("show");
+        }));
+        setTimeout(() => {
+            el.classList.remove("show");
+            setTimeout(() => el.remove(), 300);
+        }, 1800);
+    }
+    function _playClipNow(clip) {
+        const RecordingClass = window.__clipRecordingClass;
+        const TimeClass = window.__clipTimeClass;
+        if (!RecordingClass || !TimeClass) {
+            alert("Engine not ready.");
+            return;
+        }
+        const pako = window.__clipPako?.Ay ?? window.__clipPako;
+        const recBytes = _clipRecordingBytes(clip);
+        const d = new pako.Deflate({
+            level: 9
+        });
+        d.push(recBytes, true);
+        const b64 = _bytesToBase64(d.result).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+        const recording = RecordingClass.deserialize(b64);
+        if (!recording) {
+            alert("Failed to deserialize clip recording.");
+            return;
+        }
+        let carStyle;
+        try {
+            carStyle = window.__clipCarStyleClass ? window.__clipCarStyleClass.deserializeSafe(clip.carStyle) : null;
+        } catch (e) {
+            carStyle = null;
+        }
+        const loaded = replayLoaderClass?.loadClip(recording, clip.frames);
+        if (!loaded) {
+            alert("Failed to load clip.");
+            return;
+        }
+        watchingClip = true;
+        watchClipFunction([ {
+            recording: loaded.recording,
+            carStyle: carStyle,
+            nickname: clip.playerName || clip.name,
+            time: loaded.time,
+            isSelf: false
+        } ]);
+    }
+    function watchClip(clip) {
+        const currentTrack = window.__getCurrentTrack?.();
+        const currentTrackId = currentTrack?.getId?.() ?? null;
+        if (!clip.trackId || currentTrackId === clip.trackId) {
+            _playClipNow(clip);
+            return;
+        }
+        const opened = window.__miso_selectTrackById?.(clip.trackId);
+        if (!opened) {
+            const trackLabel = getTrackNameById(clip.trackId) || clip.trackId;
+            alert("This clip is for a different track (" + trackLabel + ") that isn't in your track list right now. Open that track yourself, then try watching the clip again.");
+            return;
+        }
+        _playClipNow(clip);
+    }
+    function framesToTime(frames) {
+        var ms = Math.round(frames * 1e3 / 60);
+        var min = Math.floor(ms / 6e4);
+        var sec = Math.floor(ms % 6e4 / 1e3);
+        var msec = ms % 1e3;
+        return String(min).padStart(2, "0") + ":" + String(sec).padStart(2, "0") + "." + String(msec).padStart(3, "0");
+    }
+    function injectClipCSS() {
+        if (document.getElementById("_miso-clip-css")) return;
+        var style = document.createElement("style");
+        style.id = "_miso-clip-css";
+        style.textContent = [ ".clip-menu-bg{display:flex;flex-direction:column;position:absolute;left:calc(50% - 750px / 2);top:150px;z-index:2;margin:0;padding:0;width:750px;height:calc(100% - 150px * 2);box-sizing:border-box;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-bg>h2{margin:0;padding:10px 20px;font-weight:normal;font-size:38px;text-align:center;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-container{margin:0;padding:10px;flex-grow:1;min-height:0;box-sizing:border-box;background-color:var(--surface-secondary-color);overflow-x:hidden;overflow-y:scroll;pointer-events:auto;}", "button.clip-menu-entry{position:relative;margin:0 0 10px 0;padding:10px 20px;display:block;width:100%;box-sizing:border-box;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);text-align:left;white-space:nowrap;}", "button.clip-menu-entry:last-of-type{margin-bottom:0;}", "button.clip-menu-entry.selected{background-color:var(--button-hover-color);}", "button.clip-menu-entry>h2{margin:0;padding:0 0 6px 0;font-weight:normal;font-size:24px;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>p{margin:0;font-size:18px;opacity:0.7;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>.checkmark{display:none;position:absolute;right:0;top:0;margin:6px;width:14px;}", "button.clip-menu-entry.selected>.checkmark{display:block;animation:clip-menu-checkmark-spawn 0.15s ease-out;}", "@keyframes clip-menu-checkmark-spawn{0%{transform:scale(0);}90%{transform:scale(1.2);}100%{transform:scale(1);}}", ".clip-menu-wrapper{display:flex;align-items:center;flex-wrap:wrap;padding:10px;}", ".clip-menu-wrapper>.button{margin:0 0 0 10px;}", ".clip-menu-wrapper>.button.back{margin-left:0;margin-right:auto;}", ".clip-box-bg{position:fixed;inset:0;background-color:rgba(20,20,30,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;}", ".clip-box{background-color:var(--surface-color);color:var(--text-color);width:500px;max-width:90vw;box-sizing:border-box;display:flex;flex-direction:column;}", ".clip-box>textarea{margin:10px;box-sizing:border-box;width:calc(100% - 20px);height:120px;background-color:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-family:inherit;font-size:16px;padding:10px;resize:none;}", ".clip-box>.clip-box-buttons{display:flex;justify-content:space-between;padding:0 10px 10px 10px;}", ".clip-saved-notification{position:fixed;left:50%;bottom:150px;margin:0;padding:0;text-align:center;font-size:32px;color:#fff;text-shadow:2px 2px 0 #112052,0 0 2px #000;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(10px);transition:opacity 0.25s ease-in-out, transform 0.25s ease-in-out;z-index:9999;}", ".clip-saved-notification.show{opacity:1;transform:translateX(-50%) translateY(0);}" ].join("");
+        document.head.appendChild(style);
+    }
+    function createBoxDisplay(defaultText, inputCallback) {
+        injectClipCSS();
+        var boxBg = document.createElement("div");
+        boxBg.className = "clip-box-bg";
+        var box = document.createElement("div");
+        box.className = "clip-box";
+        var ta = document.createElement("textarea");
+        ta.value = defaultText;
+        ta.readOnly = !inputCallback;
+        if (!inputCallback) ta.addEventListener("focus", function() {
+            ta.select();
+        });
+        box.appendChild(ta);
+        var btnRow = document.createElement("div");
+        btnRow.className = "clip-box-buttons";
+        if (inputCallback) {
+            var ok = document.createElement("button");
+            ok.className = "button";
+            ok.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
+            ok.append("OK");
+            ok.addEventListener("click", function() {
+                boxBg.remove();
+                inputCallback(ta.value.trim());
+            });
+            btnRow.appendChild(ok);
+        }
+        var cancel = document.createElement("button");
+        cancel.className = "button";
+        cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
+        cancel.append(inputCallback ? "Cancel" : "Back");
+        cancel.addEventListener("click", function() {
+            boxBg.remove();
+        });
+        btnRow.appendChild(cancel);
+        box.appendChild(btnRow);
+        boxBg.appendChild(box);
+        document.body.appendChild(boxBg);
+        ta.focus();
+        if (!inputCallback) ta.select();
+    }
+    function createClipsMenu(onClose) {
+        injectClipCSS();
+        var ui = document.getElementById("ui");
+        var background = document.createElement("div");
+        background.className = "clip-menu-bg";
+        var headText = document.createElement("h2");
+        headText.textContent = "Your Clips:";
+        var container = document.createElement("div");
+        container.className = "clip-menu-container";
+        var clipData = getAllClips();
+        var backButton = document.createElement("button");
+        backButton.className = "button back";
+        backButton.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
+        backButton.append("Back");
+        backButton.addEventListener("click", function() {
+            background.remove();
+            if (onClose) onClose();
+        });
+        var exportButton = document.createElement("button");
+        exportButton.className = "button";
+        exportButton.innerHTML = '<img class="button-icon" src="images/share.svg"> ';
+        exportButton.append("Export");
+        exportButton.addEventListener("click", function() {
+            var selected = container.querySelector(".clip-menu-entry.selected");
+            if (!selected) {
+                alert("Please select a clip first!");
+                return;
+            }
+            var idx = Array.from(container.children).indexOf(selected);
+            var clip = clipData[idx];
+            createBoxDisplay(toClipExport(clip));
+        });
+        var importButton = document.createElement("button");
+        importButton.className = "button";
+        importButton.innerHTML = '<img class="button-icon" src="images/import.svg"> ';
+        importButton.append("Import");
+        importButton.addEventListener("click", function() {
+            createBoxDisplay("", function(code) {
+                if (!code) return;
+                var decoded = fromClipExport(code);
+                if (!decoded) {
+                    alert("Invalid clip code.");
+                    return;
+                }
+                decoded.id = "clip_" + Date.now();
+                decoded.name = decoded.name || "Imported clip";
+                if (!localAddClip(decoded)) {
+                    alert("Failed to save imported clip: storage is full.");
+                    return;
+                }
+                clipData.push(decoded);
+                createEntry(decoded);
+            });
+        });
+        var watchButton = document.createElement("button");
+        watchButton.className = "button";
+        watchButton.innerHTML = '<img class="button-icon" src="images/play.svg"> ';
+        watchButton.append("Watch");
+        watchButton.addEventListener("click", function() {
+            var selected = container.querySelector(".clip-menu-entry.selected");
+            if (!selected) return;
+            var idx = Array.from(container.children).indexOf(selected);
+            var clip = clipData[idx];
+            background.remove();
+            watchClip(clip);
+        });
+        var deleteButton = document.createElement("button");
+        deleteButton.className = "button";
+        deleteButton.innerHTML = '<img class="button-icon" src="images/cancel.svg"> ';
+        deleteButton.append("Delete");
+        deleteButton.addEventListener("click", function() {
+            var selected = container.querySelector(".clip-menu-entry.selected");
+            if (!selected) return;
+            var idx = Array.from(container.children).indexOf(selected);
+            var clip = clipData[idx];
+            if (!localDeleteClip(clip.id)) {
+                alert("Failed to delete clip.");
+                return;
+            }
+            clipData.splice(idx, 1);
+            selected.remove();
+        });
+        var renameButton = document.createElement("button");
+        renameButton.className = "button";
+        renameButton.innerHTML = '<img class="button-icon" src="images/reset.svg"> ';
+        renameButton.append("Rename");
+        renameButton.addEventListener("click", function() {
+            createBoxDisplay("", function(newName) {
+                if (!newName) return;
+                var selected = container.querySelector(".clip-menu-entry.selected");
+                if (!selected) return;
+                var idx = Array.from(container.children).indexOf(selected);
+                var clip = clipData[idx];
+                if (!localRenameClip(clip.id, newName)) {
+                    alert("Failed to rename clip.");
+                    return;
+                }
+                clip.name = newName;
+                selected.querySelector("h2").textContent = newName;
+            });
+        });
+        function createEntry(clip) {
+            var btn = document.createElement("button");
+            btn.className = "clip-menu-entry button";
+            var h2 = document.createElement("h2");
+            h2.textContent = clip.name;
+            var p = document.createElement("p");
+            var trackLabel = getTrackNameById(clip.trackId) || clip.trackId || "Unknown track";
+            p.textContent = trackLabel + " · " + framesToTime(clip.frames);
+            var checkmark = document.createElement("img");
+            checkmark.className = "checkmark";
+            checkmark.src = "images/checkmark.svg";
+            btn.addEventListener("click", function() {
+                var wasSelected = btn.classList.contains("selected");
+                Array.from(container.children).forEach(function(c) {
+                    c.classList.remove("selected");
+                });
+                if (!wasSelected) btn.classList.add("selected");
+            });
+            btn.appendChild(h2);
+            btn.appendChild(p);
+            btn.appendChild(checkmark);
+            container.appendChild(btn);
+        }
+        clipData.forEach(function(clip) {
+            createEntry(clip);
+        });
+        var wrapper = document.createElement("div");
+        wrapper.className = "clip-menu-wrapper";
+        wrapper.appendChild(backButton);
+        wrapper.appendChild(exportButton);
+        wrapper.appendChild(importButton);
+        wrapper.appendChild(watchButton);
+        wrapper.appendChild(deleteButton);
+        wrapper.appendChild(renameButton);
+        background.appendChild(headText);
+        background.appendChild(container);
+        background.appendChild(wrapper);
+        ui.appendChild(background);
+    }
+    window.addEventListener("keydown", function(e) {
+        var focused = document.activeElement;
+        if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.isContentEditable)) return;
+        if (window.__misoClipKeyBindCapturing) return;
+        if (e.code === getClipKeyBind() && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+            createClip();
+        }
+    });
     var e, t = {
         77: (module, exports, __webpack_require__) => {
             "use strict";
@@ -7560,6 +8088,9 @@ window.__nswsDecrypt = async function(b64Data) {
             };
             const B = D;
             var G, F, O, W, V, H, j, K, q, Q, J, X, Y, Z, $, ee, te, ne, ie, re, ae, se, oe, le, ce, he, de, ue, pe, fe, ge, me, Ae, ve, ye, be, we, xe, Se, ke, Ee, Te, Me, _e, Ce, Re, Pe, Ie, Le, Ue, ze, Ne, De, Be, Ge, Fe, Oe, We, Ve, He, je, Ke, qe, Qe, Je, Xe, Ye, Ze, $e, et, tt, nt, it, rt, at, st = n(3476), ot = n(6633), lt = n(927);
+            window.__clipPako = n(3075);
+            window.__clipTimeClass = ot.A;
+            window.__clipRecordingClass = lt.A;
             class VisualCar {
                 constructor(e, t, n, i, r, a, s, o, h, d, u) {
                     if (G.add(this),
@@ -7677,7 +8208,8 @@ window.__nswsDecrypt = async function(b64Data) {
                     l.set(this, re, i, "f"),
                     null == n)
                         l.set(this, ae, null != l.get(this, re, "f"), "f"),
-                        l.set(this, se, new lt.A, "f");
+                        l.set(this, se, new lt.A, "f"),
+                        frameClass = l.get(this, se, "f");
                     else {
                         if (null != l.get(this, re, "f"))
                             throw new Error("Can't control car when recording is set");
@@ -8999,6 +9531,24 @@ window.__nswsDecrypt = async function(b64Data) {
                     i.set(this, E, o, "f"),
                     i.set(this, T, l, "f"),
                     i.set(this, M, u, "f"),
+                    window.__miso_selectTrackById = trackId => {
+                        let entry = i.get(this, B, "f").find(e => e.trackId === trackId);
+                        if (!entry) {
+                            this.refresh();
+                            entry = i.get(this, B, "f").find(e => e.trackId === trackId);
+                        }
+                        if (!entry) return false;
+                        u(entry.trackMetadata, entry.trackEnvironment, entry.trackData, entry.category, entry.trackId, entry.thumbnail);
+                        return true;
+                    },
+                    window.__miso_getTrackName = trackId => {
+                        let entry = i.get(this, B, "f").find(e => e.trackId === trackId);
+                        if (!entry) {
+                            this.refresh();
+                            entry = i.get(this, B, "f").find(e => e.trackId === trackId);
+                        }
+                        return entry?.trackMetadata?.name ?? null;
+                    },
                     i.set(this, _, document.createElement("div"), "f"),
                     i.get(this, _, "f").className = h ? "track-selection-ui with-background hidden" : "track-selection-ui hidden",
                     e.appendChild(i.get(this, _, "f"));
@@ -38759,6 +39309,7 @@ window.__nswsDecrypt = async function(b64Data) {
                     g.className = "difference",
                     C.get(this, Je, "m", et).call(this, n)) : g.className = "difference red"
                 }
+                if ("personal-best" === s && !c.classList.contains("hidden") && getAutoClipOnPB()) createClip();
                 if (null == o)
                     A.className = "hidden";
                 else {
@@ -39276,6 +39827,7 @@ window.__nswsDecrypt = async function(b64Data) {
         t()(Ot.A, Wt);
         Ot.A && Ot.A.locals && Ot.A.locals;
         var Vt, Ht = i(3075), jt = i(765), Kt = i(2108);
+        window.__clipCarStyleClass = jt.A;
         !function(e) {
             e[e.CarReset = 0] = "CarReset",
             e[e.CarUpdate = 1] = "CarUpdate",
@@ -41420,6 +41972,7 @@ window.__nswsDecrypt = async function(b64Data) {
             } else
                 a = null;
             const s = new VisualCar(C.get(this, Cr, "f"),i,null,C.get(this, ya, "f"),C.get(this, zr, "f"),C.get(this, Nr, "f"),C.get(this, Ir, "f"),C.get(this, Pr, "f"),C.get(this, Yr, "f"),C.get(this, Gr, "f"),a);
+            recordingClass = s;
             return s.notificationAudioEnabled = !0,
             s.addResetCallback(( () => {
                 C.get(this, ya, "f").reset = !1,
@@ -42330,6 +42883,7 @@ window.__nswsDecrypt = async function(b64Data) {
                     C.get(this, wa, "f").isControlsDisabled = C.get(this, Ba, "f").isEnabled || C.get(this, _r, "m", Ha).call(this),
                     window.__getPlayerState = () => C.get(this, wa, "f") ?? null,
                     window.__getCurrentTrack = () => C.get(this, Yr, "f") ?? null,
+                    window.__getPlayerNickname = () => C.get(this, Dr, "f")?.getCurrentUserProfile?.()?.nickname ?? null,
                     !C.get(this, Ba, "f").isEnabled && !C.get(this, _r, "m", Ha).call(this)) {
                         const e = C.get(this, ya, "f").getControls();
                         (e.up || e.down) && (C.get(this, wa, "f").hasStarted() || C.get(this, wa, "f").start()),
@@ -48648,7 +49202,81 @@ window.__nswsDecrypt = async function(b64Data) {
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Hide UI"), KeyBind.ToggleUI),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Pause"), KeyBind.Pause),
             C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle FPS counter"), KeyBind.ToggleFpsCounter),
-            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle spectator camera"), KeyBind.ToggleSpectatorCamera)
+            C.get(this, ms, "m", Os).call(this, gs.getFromLanguage(C.get(this, Cs, "f"), "Toggle spectator camera"), KeyBind.ToggleSpectatorCamera),
+            C.get(this, ms, "m", Ds).call(this, "Clips"),
+            ( () => {
+                const _container = C.get(this, ks, "f");
+                const _row = document.createElement("div");
+                _row.className = "setting key-binding";
+                const _label = document.createElement("p");
+                _label.textContent = "Save clip";
+                _row.appendChild(_label);
+                const _wrap = document.createElement("div");
+                _wrap.className = "button-wrapper";
+                const _keyBtn = document.createElement("button");
+                _keyBtn.className = "button";
+                _keyBtn.textContent = formatClipKeyName(getClipKeyBind());
+                _keyBtn.addEventListener("click", ( () => {
+                    _keyBtn.textContent = "Press any key...";
+                    window.__misoClipKeyBindCapturing = true;
+                    const _capture = ev => {
+                        if (ev.code === "Escape") {
+                            _keyBtn.textContent = formatClipKeyName(getClipKeyBind());
+                            window.removeEventListener("keydown", _capture);
+                            window.__misoClipKeyBindCapturing = false;
+                            return;
+                        }
+                        setClipKeyBind(ev.code);
+                        _keyBtn.textContent = formatClipKeyName(ev.code);
+                        window.removeEventListener("keydown", _capture);
+                        window.__misoClipKeyBindCapturing = false;
+                        ev.preventDefault();
+                    };
+                    window.addEventListener("keydown", _capture);
+                }
+                ));
+                _wrap.appendChild(_keyBtn);
+                _row.appendChild(_wrap);
+                _container.appendChild(_row);
+            }
+            )(),
+            ( () => {
+                const _container = C.get(this, ks, "f");
+                const _row = document.createElement("div");
+                _row.className = "setting";
+                const _label = document.createElement("p");
+                _label.textContent = "Auto-clip on personal best";
+                _row.appendChild(_label);
+                const _wrap = document.createElement("div");
+                _wrap.className = "button-wrapper";
+                const _offBtn = document.createElement("button");
+                _offBtn.className = "button";
+                _offBtn.textContent = "Off";
+                const _onBtn = document.createElement("button");
+                _onBtn.className = "button";
+                _onBtn.textContent = "On";
+                const _refresh = () => {
+                    const _enabled = getAutoClipOnPB();
+                    _offBtn.classList.toggle("selected", !_enabled);
+                    _onBtn.classList.toggle("selected", _enabled);
+                };
+                _offBtn.addEventListener("click", ( () => {
+                    setAutoClipOnPB(false);
+                    _refresh();
+                }
+                ));
+                _onBtn.addEventListener("click", ( () => {
+                    setAutoClipOnPB(true);
+                    _refresh();
+                }
+                ));
+                _refresh();
+                _wrap.appendChild(_offBtn);
+                _wrap.appendChild(_onBtn);
+                _row.appendChild(_wrap);
+                _container.appendChild(_row);
+            }
+            )()
         }
         ,
         Ds = function(e) {
@@ -49339,6 +49967,7 @@ window.__nswsDecrypt = async function(b64Data) {
         ;
         const nl = class {
             constructor(e, t, n, i, r, a, s, o, l, c, h, d, u, p, f, g, m, A) {
+                watchClipFunction = A;
                 Uo.add(this),
                 zo.set(this, void 0),
                 No.set(this, void 0),
@@ -51146,6 +51775,25 @@ window.__nswsDecrypt = async function(b64Data) {
             for (const e of C.get(this, Gc, "f"))
                 C.get(this, Bc, "f").removeChild(e);
             C.set(this, Gc, [], "f");
+            const clipsBtn = document.createElement("button");
+            clipsBtn.className = "button button-image",
+            clipsBtn.innerHTML = '<img src="images/preview.svg">',
+            clipsBtn.addEventListener("click", ( () => {
+                n.playUIClick(),
+                C.get(this, vc, "m", qc).call(this),
+                C.get(this, vc, "m", Xc).call(this),
+                createClipsMenu(( () => {
+                    C.get(this, vc, "m", Qc).call(this),
+                    C.get(this, vc, "m", Yc).call(this)
+                }
+                ))
+            }
+            ));
+            const clipsText = document.createElement("p");
+            clipsText.textContent = "Clips",
+            clipsBtn.appendChild(clipsText),
+            C.get(this, Nc, "f").appendChild(clipsBtn),
+            C.get(this, Dc, "f").push(clipsBtn);
             const v = document.createElement("button");
             v.className = "button button-image",
             v.innerHTML = '<img src="images/customize.svg">',
@@ -51676,7 +52324,8 @@ window.__nswsDecrypt = async function(b64Data) {
             for (const e of C.get(this, Dc, "f"))
                 e.classList.remove("button-spawn");
             C.get(this, Bc, "f").classList.add("hidden"),
-            null != C.get(this, Tc, "f") && (C.get(this, Tc, "f").className = "hidden"),
+            null != C.get(this, Tc, "f") && (C.get(this, Tc, "f").className = "hidden",
+            C.get(this, Tc, "f").style.display = "none"),
             C.get(this, Mc, "f").className = "hidden"
         }
         ,
@@ -51684,7 +52333,8 @@ window.__nswsDecrypt = async function(b64Data) {
             C.get(this, vc, "m", Jc).call(this),
             C.get(this, Nc, "f").classList.remove("hidden"),
             C.get(this, Bc, "f").classList.remove("hidden"),
-            null != C.get(this, Tc, "f") && (C.get(this, Tc, "f").className = "discord-link"),
+            null != C.get(this, Tc, "f") && (C.get(this, Tc, "f").className = "discord-link",
+            C.get(this, Tc, "f").style.display = "flex"),
             C.get(this, Mc, "f").className = "info";
             if (!document.getElementById("nsws-disclaimer")) {
                 const d = document.createElement("div");
@@ -51810,7 +52460,7 @@ window.__nswsDecrypt = async function(b64Data) {
                     C.get(this, Tc, "f").className = "discord-link",
                     C.get(this, Tc, "f").href = "https://discord.gg/v5xrXSfvtE",
                     C.get(this, Tc, "f").target = "_blank",
-                    C.get(this, Tc, "f").style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;position:absolute;right:calc(30px + var(--safe-area-horizontal));bottom:16px;margin:0;padding:0;pointer-events:auto;text-decoration:none;max-width:min(280px,40vw);text-align:center;",
+                    C.get(this, Tc, "f").style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;position:absolute;right:calc(30px + var(--safe-area-horizontal));bottom:64px;margin:0;padding:0;pointer-events:auto;text-decoration:none;max-width:min(280px,40vw);text-align:center;",
                     C.get(this, kc, "f").appendChild(C.get(this, Tc, "f"));
                     const e = document.createElement("img");
                     i.hasLoaded() || (e.classList.add("hidden"),
@@ -53223,6 +53873,7 @@ window.__nswsDecrypt = async function(b64Data) {
         var Rd, Pd, Id, Ld, Ud, zd, Nd, Dd, Bd, Gd, Fd, Od, Wd, Vd, Hd, jd, Kd, qd, Qd, Jd, Xd, Yd, Zd, $d, eu, TrackDataImporterLegacy = i(7980), TrackDataImporterV1 = i(666), TrackDataImporterV2 = i(5343), TrackDataImporterV3 = i(8928), TrackDataImporterV4 = i(5440), su = i(2951), ou = i(2387);
         class lu {
             constructor() {
+                replayLoaderClass = this;
                 Rd.add(this),
                 Id.set(this, {
                     getItem: () => {
@@ -53356,6 +54007,14 @@ window.__nswsDecrypt = async function(b64Data) {
                     console.error(e)
                 }
                 return null
+            }
+            loadClip(recording, frames) {
+                if (!(recording instanceof window.__clipRecordingClass)) return null;
+                if (!Number.isSafeInteger(frames) || frames < 1) return null;
+                return {
+                    time: new window.__clipTimeClass(frames),
+                    recording: recording
+                };
             }
             loadRecordTracks() {
                 const e = C.get(this, Id, "f").getAllKeys()
