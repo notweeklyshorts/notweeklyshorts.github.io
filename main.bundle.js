@@ -29,6 +29,22 @@ window.__nswsDecrypt = async function(b64Data) {
     let watchClipFunction = () => {};
     let replayLoaderClass;
     let watchingClip;
+    (function() {
+        var style = document.createElement("style");
+        style.id = "_miso-clip-hud-css";
+        style.textContent = "body.clip-watching-hud .timer-ui,body.clip-watching-hud .speedometer-ui,body.clip-watching-hud .input-visualizer-ui,body.clip-watching-hud .preview-toolbar-ui button:has(img[src=\"images/graph.svg\"]){display:none !important;}";
+        document.head.appendChild(style);
+    })();
+    (function _clipHudWatcher() {
+        requestAnimationFrame(_clipHudWatcher);
+        var toolbar = document.querySelector(".preview-toolbar-ui");
+        if (watchingClip && toolbar) {
+            document.body.classList.add("clip-watching-hud");
+        } else {
+            document.body.classList.remove("clip-watching-hud");
+            if (!toolbar && watchingClip) watchingClip = false;
+        }
+    })();
     const CLIPS_STORAGE_KEY = "miso_clips";
     const CLIP_KEYBIND_STORAGE_KEY = "_clipKeyBind";
     const DEFAULT_CLIP_KEYBIND = "KeyC";
@@ -55,6 +71,19 @@ window.__nswsDecrypt = async function(b64Data) {
     function setAutoClipOnPB(enabled) {
         try {
             localStorage.setItem(AUTO_CLIP_PB_STORAGE_KEY, enabled ? "true" : "false");
+        } catch (e) {}
+    }
+    const AUTO_CLIP_EVERY_RUN_STORAGE_KEY = "_autoClipOnEveryRun";
+    function getAutoClipOnEveryRun() {
+        try {
+            return localStorage.getItem(AUTO_CLIP_EVERY_RUN_STORAGE_KEY) === "true";
+        } catch (e) {
+            return false;
+        }
+    }
+    function setAutoClipOnEveryRun(enabled) {
+        try {
+            localStorage.setItem(AUTO_CLIP_EVERY_RUN_STORAGE_KEY, enabled ? "true" : "false");
         } catch (e) {}
     }
     function formatClipKeyName(code) {
@@ -39309,7 +39338,11 @@ window.__nswsDecrypt = async function(b64Data) {
                     g.className = "difference",
                     C.get(this, Je, "m", et).call(this, n)) : g.className = "difference red"
                 }
-                if ("personal-best" === s && !c.classList.contains("hidden") && getAutoClipOnPB()) createClip();
+                {
+                    const _wasPB = "personal-best" === s && !c.classList.contains("hidden");
+                    if (_wasPB && getAutoClipOnPB()) createClip();
+                    else if (getAutoClipOnEveryRun()) createClip();
+                }
                 if (null == o)
                     A.className = "hidden";
                 else {
@@ -49267,6 +49300,43 @@ window.__nswsDecrypt = async function(b64Data) {
                 ));
                 _onBtn.addEventListener("click", ( () => {
                     setAutoClipOnPB(true);
+                    _refresh();
+                }
+                ));
+                _refresh();
+                _wrap.appendChild(_offBtn);
+                _wrap.appendChild(_onBtn);
+                _row.appendChild(_wrap);
+                _container.appendChild(_row);
+            }
+            )(),
+            ( () => {
+                const _container = C.get(this, ks, "f");
+                const _row = document.createElement("div");
+                _row.className = "setting";
+                const _label = document.createElement("p");
+                _label.textContent = "Auto-clip on every run";
+                _row.appendChild(_label);
+                const _wrap = document.createElement("div");
+                _wrap.className = "button-wrapper";
+                const _offBtn = document.createElement("button");
+                _offBtn.className = "button";
+                _offBtn.textContent = "Off";
+                const _onBtn = document.createElement("button");
+                _onBtn.className = "button";
+                _onBtn.textContent = "On";
+                const _refresh = () => {
+                    const _enabled = getAutoClipOnEveryRun();
+                    _offBtn.classList.toggle("selected", !_enabled);
+                    _onBtn.classList.toggle("selected", _enabled);
+                };
+                _offBtn.addEventListener("click", ( () => {
+                    setAutoClipOnEveryRun(false);
+                    _refresh();
+                }
+                ));
+                _onBtn.addEventListener("click", ( () => {
+                    setAutoClipOnEveryRun(true);
                     _refresh();
                 }
                 ));
