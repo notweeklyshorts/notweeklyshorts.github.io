@@ -1915,7 +1915,7 @@
                 }, !0),
                 i.get(this, Ce, "f").update(0),
                 i.set(this, Ee, [], "f");
-                for (let t = 0; t < E.A.maxNumberOfProfiles; t++) {
+                for (let t = 0; t < 3; t++) {
                     const o = {
                         position: new THREE.Vector3(10.5 * t - 22,.35,-34),
                         quaternion: (new THREE.Quaternion).setFromEuler(new THREE.Euler(0,0,0))
