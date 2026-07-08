@@ -53173,7 +53173,8 @@ window.__nswsDecrypt = async function(b64Data) {
                 }
                 )),
                 t.addEventListener("error", ( () => {
-                    console.error("Failed to preload image: " + e)
+                    console.error("Failed to preload image: " + e),
+                    this.loadedResource()
                 }
                 )),
                 t.src = e
