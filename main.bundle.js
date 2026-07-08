@@ -555,6 +555,27 @@ window.__nswsDecrypt = async function(b64Data) {
         var msec = ms % 1e3;
         return String(min).padStart(2, "0") + ":" + String(sec).padStart(2, "0") + "." + String(msec).padStart(3, "0");
     }
+    var _clipEscapeStack = [];
+    var _clipEscapeListenerAdded = false;
+    function _clipEscapeListener(e) {
+        if (e.code === "Escape" && _clipEscapeStack.length) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            var top = _clipEscapeStack[_clipEscapeStack.length - 1];
+            top();
+        }
+    }
+    function pushClipEscape(handler) {
+        if (!_clipEscapeListenerAdded) {
+            window.addEventListener("keydown", _clipEscapeListener, true);
+            _clipEscapeListenerAdded = true;
+        }
+        _clipEscapeStack.push(handler);
+    }
+    function popClipEscape(handler) {
+        var idx = _clipEscapeStack.lastIndexOf(handler);
+        if (idx !== -1) _clipEscapeStack.splice(idx, 1);
+    }
     function injectClipCSS() {
         if (document.getElementById("_bw-clip-css")) return;
         var style = document.createElement("style");
@@ -592,6 +613,11 @@ window.__nswsDecrypt = async function(b64Data) {
             ta.select();
         });
         box.appendChild(ta);
+        function closeBox() {
+            popClipEscape(closeBox);
+            boxBg.remove();
+        }
+        pushClipEscape(closeBox);
         var btnRow = document.createElement("div");
         btnRow.className = "clip-box-buttons";
         if (inputCallback) {
@@ -600,7 +626,7 @@ window.__nswsDecrypt = async function(b64Data) {
             cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
             cancel.append("Cancel");
             cancel.addEventListener("click", function() {
-                boxBg.remove();
+                closeBox();
             });
             btnRow.appendChild(cancel);
             var ok = document.createElement("button");
@@ -608,7 +634,7 @@ window.__nswsDecrypt = async function(b64Data) {
             ok.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
             ok.append("OK");
             ok.addEventListener("click", function() {
-                boxBg.remove();
+                closeBox();
                 inputCallback(ta.value.trim());
             });
             btnRow.appendChild(ok);
@@ -618,7 +644,7 @@ window.__nswsDecrypt = async function(b64Data) {
             back.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
             back.append("Back");
             back.addEventListener("click", function() {
-                boxBg.remove();
+                closeBox();
             });
             btnRow.appendChild(back);
             var copy = document.createElement("button");
@@ -665,6 +691,11 @@ window.__nswsDecrypt = async function(b64Data) {
         msg.className = "clip-confirm-message";
         msg.textContent = message;
         box.appendChild(msg);
+        function closeBox() {
+            popClipEscape(closeBox);
+            boxBg.remove();
+        }
+        pushClipEscape(closeBox);
         var btnRow = document.createElement("div");
         btnRow.className = "clip-box-buttons";
         var cancel = document.createElement("button");
@@ -672,14 +703,14 @@ window.__nswsDecrypt = async function(b64Data) {
         cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
         cancel.append("Cancel");
         cancel.addEventListener("click", function() {
-            boxBg.remove();
+            closeBox();
         });
         var confirm = document.createElement("button");
         confirm.className = "button";
         confirm.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
         confirm.append(confirmLabel || "Confirm");
         confirm.addEventListener("click", function() {
-            boxBg.remove();
+            closeBox();
             onConfirm();
         });
         btnRow.appendChild(cancel);
@@ -698,6 +729,11 @@ window.__nswsDecrypt = async function(b64Data) {
         msg.className = "clip-confirm-message";
         msg.textContent = message;
         box.appendChild(msg);
+        function closeBox() {
+            popClipEscape(closeBox);
+            boxBg.remove();
+        }
+        pushClipEscape(closeBox);
         var btnRow = document.createElement("div");
         btnRow.className = "clip-box-buttons";
         var ok = document.createElement("button");
@@ -705,7 +741,7 @@ window.__nswsDecrypt = async function(b64Data) {
         ok.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
         ok.append("OK");
         ok.addEventListener("click", function() {
-            boxBg.remove();
+            closeBox();
         });
         btnRow.appendChild(ok);
         box.appendChild(btnRow);
@@ -723,19 +759,12 @@ window.__nswsDecrypt = async function(b64Data) {
         var container = document.createElement("div");
         container.className = "clip-menu-container";
         var clipData = getAllClips();
-        function onClipsMenuKeydown(e) {
-            if (e.code === "Escape") {
-                e.preventDefault();
-                e.stopImmediatePropagation();
-                closeClipsMenu();
-            }
-        }
         function closeClipsMenu() {
-            window.removeEventListener("keydown", onClipsMenuKeydown, true);
+            popClipEscape(closeClipsMenu);
             background.remove();
             if (onClose) onClose();
         }
-        window.addEventListener("keydown", onClipsMenuKeydown, true);
+        pushClipEscape(closeClipsMenu);
         var backButton = document.createElement("button");
         backButton.className = "button back";
         backButton.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
@@ -797,7 +826,7 @@ window.__nswsDecrypt = async function(b64Data) {
             if (!selected) return;
             var idx = Array.from(container.children).indexOf(selected);
             var clip = clipData[idx];
-            window.removeEventListener("keydown", onClipsMenuKeydown, true);
+            popClipEscape(closeClipsMenu);
             background.remove();
             showClipSkyOverlay();
             watchClip(clip);
