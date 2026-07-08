@@ -284,15 +284,15 @@ window.__nswsDecrypt = async function(b64Data) {
         });
         d2.push(d1.result, true);
         let b64 = _bytesToBase64(d2.result).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-        return "ClipsMiso2" + b64;
+        return "ClipsBrin2" + b64;
     }
     function fromClipExport(str) {
         try {
-            const isV2 = str.startsWith("ClipsMiso2");
-            const isV1 = !isV2 && str.startsWith("ClipsMiso1");
+            const isV2 = str.startsWith("ClipsBrin2");
+            const isV1 = !isV2 && str.startsWith("ClipsBrin1");
             if (!isV2 && !isV1) return null;
             const pako = window.__clipPako?.Ay ?? window.__clipPako;
-            let b64 = str.slice("ClipsMiso1".length).replace(/-/g, "+").replace(/_/g, "/");
+            let b64 = str.slice("ClipsBrin1".length).replace(/-/g, "+").replace(/_/g, "/");
             const bytes = _base64ToBytes(b64);
             const i1 = new pako.Inflate;
             i1.push(bytes, true);
