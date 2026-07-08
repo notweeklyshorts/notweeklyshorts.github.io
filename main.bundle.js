@@ -702,11 +702,10 @@ window.__nswsDecrypt = async function(b64Data) {
             e.stopImmediatePropagation();
             watchingClip = false;
             try {
-                window.__bw_currentClipSession?.dispose();
+                window.__bw_returnToMenu?.();
             } catch (err) {
-                console.error("[BW-Clip] Failed to dispose clip session on Escape:", err);
+                console.error("[BW-Clip] Failed to return to menu on Escape:", err);
             }
-            window.__bw_currentClipSession = null;
             openClipsMenu();
             return;
         }
@@ -57214,7 +57213,9 @@ window.__nswsDecrypt = async function(b64Data) {
                 }
                 ))
             }
-              , _ = () => {
+            ;
+            window.__bw_returnToMenu = () => M(!1, null);
+            const _ = () => {
                 o.trigger((async () => {
                     P.bQ(),
                     P.pS();
@@ -57351,14 +57352,12 @@ window.__nswsDecrypt = async function(b64Data) {
                     Q = new Rf(f,v,e,t,n,A,m,h,l,b,r,i,( (e, t, n, i) => {
                         if (watchingClip) {
                             watchingClip = false,
-                            Q.dispose(),
-                            window.__bw_currentClipSession = null,
+                            M(!1, null),
                             openClipsMenu()
                         } else
                             W(e, t, n, i, null)
                     }
                     )),
-                    window.__bw_currentClipSession = Q,
                     P.PM(),
                     P.tU()
                 }
