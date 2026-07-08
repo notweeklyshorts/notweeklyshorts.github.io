@@ -595,6 +595,14 @@ window.__nswsDecrypt = async function(b64Data) {
         var btnRow = document.createElement("div");
         btnRow.className = "clip-box-buttons";
         if (inputCallback) {
+            var cancel = document.createElement("button");
+            cancel.className = "button";
+            cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
+            cancel.append("Cancel");
+            cancel.addEventListener("click", function() {
+                boxBg.remove();
+            });
+            btnRow.appendChild(cancel);
             var ok = document.createElement("button");
             ok.className = "button";
             ok.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
@@ -604,15 +612,43 @@ window.__nswsDecrypt = async function(b64Data) {
                 inputCallback(ta.value.trim());
             });
             btnRow.appendChild(ok);
+        } else {
+            var copy = document.createElement("button");
+            copy.className = "button";
+            copy.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
+            var copyLabelText = document.createTextNode("Copy");
+            copy.append(copyLabelText);
+            copy.addEventListener("click", function() {
+                function showCopied() {
+                    copyLabelText.textContent = "Copied!";
+                    setTimeout(function() {
+                        copyLabelText.textContent = "Copy";
+                    }, 1500);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(ta.value).then(showCopied, function() {
+                        ta.focus();
+                        ta.select();
+                        document.execCommand("copy");
+                        showCopied();
+                    });
+                } else {
+                    ta.focus();
+                    ta.select();
+                    document.execCommand("copy");
+                    showCopied();
+                }
+            });
+            btnRow.appendChild(copy);
+            var back = document.createElement("button");
+            back.className = "button";
+            back.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
+            back.append("Back");
+            back.addEventListener("click", function() {
+                boxBg.remove();
+            });
+            btnRow.appendChild(back);
         }
-        var cancel = document.createElement("button");
-        cancel.className = "button";
-        cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
-        cancel.append(inputCallback ? "Cancel" : "Back");
-        cancel.addEventListener("click", function() {
-            boxBg.remove();
-        });
-        btnRow.appendChild(cancel);
         box.appendChild(btnRow);
         boxBg.appendChild(box);
         document.body.appendChild(boxBg);
