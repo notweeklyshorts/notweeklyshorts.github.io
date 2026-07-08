@@ -35,7 +35,7 @@ window.__nswsDecrypt = async function(b64Data) {
     (function() {
         var style = document.createElement("style");
         style.id = "_bw-clip-hud-css";
-        style.textContent = ".clip-watching-hud .timer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .speedometer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .input-visualizer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .preview-toolbar-ui button:has(img[src=\"images/graph.svg\"]){display:none!important;visibility:hidden!important;pointer-events:none!important;}";
+        style.textContent = ".clip-watching-hud .timer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .speedometer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .input-visualizer-ui{display:none!important;visibility:hidden!important;}.clip-watching-hud .preview-toolbar-ui button:has(img[src=\"images/graph.svg\"]){display:none!important;visibility:hidden!important;pointer-events:none!important;}.clips-menu-open .menu-ui>.main-buttons-container{display:none!important;visibility:hidden!important;pointer-events:none!important;}.clips-menu-open .menu-ui>.logo{display:none!important;visibility:hidden!important;}.clips-menu-open .menu-ui>.discord-link{display:none!important;visibility:hidden!important;pointer-events:none!important;}.clips-menu-open .menu-ui>.info{display:none!important;visibility:hidden!important;pointer-events:none!important;}.clips-menu-open .menu-ui>.warning-message{display:none!important;visibility:hidden!important;}";
         document.head.appendChild(style);
     })();
     (function() {
@@ -83,6 +83,29 @@ window.__nswsDecrypt = async function(b64Data) {
                     el.style.removeProperty("display");
                     el.style.removeProperty("visibility");
                     el.style.removeProperty("pointer-events");
+                }
+            }
+            // The clips list panel (`.clip-menu-bg`) is only a centered box, not
+            // a full-screen overlay, so whatever scene/screen is behind it
+            // (typically the home screen, including after returning from a
+            // watched clip) is otherwise still fully visible and clickable
+            // around its edges. Hide and disable that underlying home-screen
+            // menu chrome for as long as the panel is present, the same way the
+            // game itself does when its own "Clips" button opens this panel.
+            var clipsMenuOpen = !!document.querySelector(".clip-menu-bg");
+            document.body.classList.toggle("clips-menu-open", clipsMenuOpen);
+            var homeEls = [ document.querySelector(".menu-ui > .main-buttons-container"), document.querySelector(".menu-ui > .logo"), document.querySelector(".menu-ui > .discord-link"), document.querySelector(".menu-ui > .info"), document.querySelector(".menu-ui > .warning-message") ];
+            for (var j = 0; j < homeEls.length; j++) {
+                var homeEl = homeEls[j];
+                if (!homeEl) continue;
+                if (clipsMenuOpen) {
+                    homeEl.style.setProperty("display", "none", "important");
+                    homeEl.style.setProperty("visibility", "hidden", "important");
+                    homeEl.style.setProperty("pointer-events", "none", "important");
+                } else {
+                    homeEl.style.removeProperty("display");
+                    homeEl.style.removeProperty("visibility");
+                    homeEl.style.removeProperty("pointer-events");
                 }
             }
         }
