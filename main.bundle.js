@@ -245,6 +245,17 @@ window.__nswsDecrypt = async function(b64Data) {
         clip.name = newName;
         return saveAllClips(clips);
     }
+    function _findDuplicateClip(candidate) {
+        const candidateBytes = _bytesToBase64(_clipRecordingBytes(candidate));
+        const existing = getAllClips();
+        for (const c of existing) {
+            if ((c.trackId || "") !== (candidate.trackId || "")) continue;
+            if (c.frames !== candidate.frames) continue;
+            if (_bytesToBase64(_clipRecordingBytes(c)) !== candidateBytes) continue;
+            return c;
+        }
+        return null;
+    }
     function toClipExport(clip) {
         const pako = window.__clipPako?.Ay ?? window.__clipPako;
         const nameBytes = (new TextEncoder).encode(clip.name ?? "");
@@ -529,7 +540,7 @@ window.__nswsDecrypt = async function(b64Data) {
         if (document.getElementById("_bw-clip-css")) return;
         var style = document.createElement("style");
         style.id = "_bw-clip-css";
-        style.textContent = [ ".clip-menu-bg{display:flex;flex-direction:column;position:absolute;left:calc(50% - 750px / 2);top:150px;z-index:2;margin:0;padding:0;width:750px;height:calc(100% - 150px * 2);box-sizing:border-box;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-bg>h2{margin:0;padding:10px 20px;font-weight:normal;font-size:38px;text-align:center;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-container{margin:0;padding:10px;flex-grow:1;min-height:0;box-sizing:border-box;background-color:var(--surface-secondary-color);overflow-x:hidden;overflow-y:scroll;pointer-events:auto;}", "button.clip-menu-entry{position:relative;margin:0 0 10px 0;padding:10px 20px;display:block;width:100%;box-sizing:border-box;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);text-align:left;white-space:nowrap;}", "button.clip-menu-entry:last-of-type{margin-bottom:0;}", "button.clip-menu-entry.selected{background-color:var(--button-hover-color);}", "button.clip-menu-entry>h2{margin:0;padding:0 0 6px 0;font-weight:normal;font-size:24px;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>p{margin:0;font-size:18px;opacity:0.7;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>.checkmark{display:none;position:absolute;right:0;top:0;margin:6px;width:14px;}", "button.clip-menu-entry.selected>.checkmark{display:block;animation:clip-menu-checkmark-spawn 0.15s ease-out;}", "@keyframes clip-menu-checkmark-spawn{0%{transform:scale(0);}90%{transform:scale(1.2);}100%{transform:scale(1);}}", ".clip-menu-wrapper{display:flex;align-items:center;flex-wrap:wrap;padding:10px;}", ".clip-menu-wrapper>.button{margin:0 0 0 10px;}", ".clip-menu-wrapper>.button.back{margin-left:0;margin-right:auto;}", ".clip-box-bg{position:fixed;inset:0;background-color:rgba(20,20,30,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;}", ".clip-box{background-color:var(--surface-color);color:var(--text-color);width:500px;max-width:90vw;box-sizing:border-box;display:flex;flex-direction:column;}", ".clip-box>textarea{margin:10px;box-sizing:border-box;width:calc(100% - 20px);height:120px;background-color:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-family:inherit;font-size:16px;padding:10px;resize:none;}", ".clip-box>.clip-box-buttons{display:flex;justify-content:space-between;padding:0 10px 10px 10px;}", ".clip-saved-notification{position:fixed;left:50%;bottom:150px;margin:0;padding:0;text-align:center;font-size:32px;color:#fff;text-shadow:2px 2px 0 #112052,0 0 2px #000;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(10px);transition:opacity 0.25s ease-in-out, transform 0.25s ease-in-out;z-index:9999;}", ".clip-saved-notification.show{opacity:1;transform:translateX(-50%) translateY(0);}" ].join("");
+        style.textContent = [ ".clip-menu-bg{display:flex;flex-direction:column;position:absolute;left:calc(50% - 750px / 2);top:150px;z-index:2;margin:0;padding:0;width:750px;height:calc(100% - 150px * 2);box-sizing:border-box;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-bg>h2{margin:0;padding:10px 20px;font-weight:normal;font-size:38px;text-align:center;background-color:var(--surface-color);color:var(--text-color);}", ".clip-menu-container{margin:0;padding:10px;flex-grow:1;min-height:0;box-sizing:border-box;background-color:var(--surface-secondary-color);overflow-x:hidden;overflow-y:scroll;pointer-events:auto;}", "button.clip-menu-entry{position:relative;margin:0 0 10px 0;padding:10px 20px;display:block;width:100%;box-sizing:border-box;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);text-align:left;white-space:nowrap;}", "button.clip-menu-entry:last-of-type{margin-bottom:0;}", "button.clip-menu-entry.selected{background-color:var(--button-hover-color);}", "button.clip-menu-entry>h2{margin:0;padding:0 0 6px 0;font-weight:normal;font-size:24px;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>p{margin:0;font-size:18px;opacity:0.7;overflow:hidden;text-overflow:ellipsis;}", "button.clip-menu-entry>.checkmark{display:none;position:absolute;right:0;top:0;margin:6px;width:14px;}", "button.clip-menu-entry.selected>.checkmark{display:block;animation:clip-menu-checkmark-spawn 0.15s ease-out;}", "@keyframes clip-menu-checkmark-spawn{0%{transform:scale(0);}90%{transform:scale(1.2);}100%{transform:scale(1);}}", ".clip-menu-wrapper{display:flex;align-items:center;flex-wrap:wrap;padding:10px;}", ".clip-menu-wrapper>.button{margin:0 0 0 10px;}", ".clip-menu-wrapper>.button.back{margin-left:0;margin-right:auto;}", ".clip-box-bg{position:fixed;inset:0;background-color:rgba(20,20,30,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;}", ".clip-box{background-color:var(--surface-color);color:var(--text-color);width:500px;max-width:90vw;box-sizing:border-box;display:flex;flex-direction:column;}", ".clip-box>textarea{margin:10px;box-sizing:border-box;width:calc(100% - 20px);height:120px;background-color:var(--surface-secondary-color);color:var(--text-color);border:none;outline:none;font-family:inherit;font-size:16px;padding:10px;resize:none;}", ".clip-box>.clip-box-buttons{display:flex;justify-content:space-between;padding:0 10px 10px 10px;}", ".clip-confirm-message{margin:10px;padding:10px;font-size:18px;line-height:1.4;}", ".clip-saved-notification{position:fixed;left:50%;bottom:150px;margin:0;padding:0;text-align:center;font-size:32px;color:#fff;text-shadow:2px 2px 0 #112052,0 0 2px #000;pointer-events:none;opacity:0;transform:translateX(-50%) translateY(10px);transition:opacity 0.25s ease-in-out, transform 0.25s ease-in-out;z-index:9999;}", ".clip-saved-notification.show{opacity:1;transform:translateX(-50%) translateY(0);}" ].join("");
         document.head.appendChild(style);
     }
     function ensureClipSkyOverlay() {
@@ -589,6 +600,39 @@ window.__nswsDecrypt = async function(b64Data) {
         ta.focus();
         if (!inputCallback) ta.select();
     }
+    function showClipConfirm(message, confirmLabel, onConfirm) {
+        injectClipCSS();
+        var boxBg = document.createElement("div");
+        boxBg.className = "clip-box-bg";
+        var box = document.createElement("div");
+        box.className = "clip-box";
+        var msg = document.createElement("p");
+        msg.className = "clip-confirm-message";
+        msg.textContent = message;
+        box.appendChild(msg);
+        var btnRow = document.createElement("div");
+        btnRow.className = "clip-box-buttons";
+        var cancel = document.createElement("button");
+        cancel.className = "button";
+        cancel.innerHTML = '<img class="button-icon" src="images/back.svg"> ';
+        cancel.append("Cancel");
+        cancel.addEventListener("click", function() {
+            boxBg.remove();
+        });
+        var confirm = document.createElement("button");
+        confirm.className = "button";
+        confirm.innerHTML = '<img class="button-icon" src="images/apply.svg"> ';
+        confirm.append(confirmLabel || "Confirm");
+        confirm.addEventListener("click", function() {
+            boxBg.remove();
+            onConfirm();
+        });
+        btnRow.appendChild(cancel);
+        btnRow.appendChild(confirm);
+        box.appendChild(btnRow);
+        boxBg.appendChild(box);
+        document.body.appendChild(boxBg);
+    }
     function createClipsMenu(onClose) {
         openClipsMenu = () => createClipsMenu(onClose);
         injectClipCSS();
@@ -646,14 +690,31 @@ window.__nswsDecrypt = async function(b64Data) {
                     alert("Invalid clip code.");
                     return;
                 }
-                decoded.id = "clip_" + Date.now();
-                decoded.name = decoded.name || "Imported clip";
-                if (!localAddClip(decoded)) {
-                    alert("Failed to save imported clip: storage is full.");
-                    return;
+                function finishImport() {
+                    decoded.id = "clip_" + Date.now();
+                    decoded.name = decoded.name || "Imported clip";
+                    if (!localAddClip(decoded)) {
+                        alert("Failed to save imported clip: storage is full.");
+                        return;
+                    }
+                    clipData.push(decoded);
+                    createEntry(decoded);
                 }
-                clipData.push(decoded);
-                createEntry(decoded);
+                var duplicate = _findDuplicateClip(decoded);
+                if (duplicate) {
+                    showClipConfirm('You already have this clip ("' + (duplicate.name || duplicate.playerName || "Unnamed clip") + '"). Do you wish to replace it?', "Replace", function() {
+                        var idx = clipData.indexOf(duplicate);
+                        if (idx !== -1) {
+                            var entryEl = container.children[idx];
+                            if (entryEl) entryEl.remove();
+                            clipData.splice(idx, 1);
+                        }
+                        localDeleteClip(duplicate.id);
+                        finishImport();
+                    });
+                } else {
+                    finishImport();
+                }
             });
         });
         var watchButton = document.createElement("button");
