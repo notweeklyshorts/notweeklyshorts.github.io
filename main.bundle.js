@@ -9589,6 +9589,8 @@ window.__nswsDecrypt = async function(b64Data) {
                     trackMetadata: n,
                     trackEnvironment: r,
                     trackData: a,
+                    trackId: s,
+                    thumbnail: o,
                     buttonContainer: c
                 })
             }
