@@ -58803,3 +58803,149 @@ window.__nswsDecrypt = async function(b64Data) {
     }
     tryInit();
 })();
+
+(function () {
+    // --- CPS (clicks per second) counter, shown in the top-right corner while driving. ---
+    var BINDINGS_KEY = "polytrack_v5_prod_key_bindings";
+    var DRIVE_ACTIONS = {
+        VehicleAccelerate: 1,
+        VehicleBrake: 1,
+        VehicleTurnLeft: 1,
+        VehicleTurnRight: 1
+    };
+
+    var inputTimes = [];
+    var totalInputs = 0;
+    var burstFlashTimeout = null;
+    var cpsEl = null, burstSpan = null;
+    var prevInGame = false;
+    var prevHasStarted = false;
+    var driveKeys = {}, heldKeys = {};
+
+    function loadBindings() {
+        driveKeys = {};
+        try {
+            var raw = localStorage.getItem(BINDINGS_KEY);
+            var bindings = raw ? JSON.parse(raw) : [];
+            for (var i = 0; i < bindings.length; i++) {
+                var action = bindings[i][0], keys = bindings[i][1];
+                if (!DRIVE_ACTIONS[action]) continue;
+                for (var j = 0; j < keys.length; j++) {
+                    if (keys[j] != null) driveKeys[keys[j]] = 1;
+                }
+            }
+        } catch (e) {}
+        if (Object.keys(driveKeys).length === 0) {
+            driveKeys = {
+                ArrowUp: 1,
+                ArrowDown: 1,
+                ArrowLeft: 1,
+                ArrowRight: 1,
+                KeyW: 1,
+                KeyS: 1,
+                KeyA: 1,
+                KeyD: 1
+            };
+        }
+    }
+    loadBindings();
+    window.addEventListener("storage", function (e) {
+        if (e.key === BINDINGS_KEY) loadBindings();
+    });
+
+    var styleEl = document.createElement("style");
+    styleEl.textContent = "#_nsws-cps{position:absolute;top:12px;right:20px;z-index:10;pointer-events:none;" +
+        "font-family:ForcedSquare,Arial,sans-serif;font-style:italic;color:var(--text-color,#fff);" +
+        "font-size:24px;text-shadow:0 0 6px rgba(0,0,0,0.8),0 2px 4px rgba(0,0,0,0.6);" +
+        "background-color:var(--surface-color,rgba(17,32,82,0.55));padding:5px 14px;" +
+        "clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);}" +
+        "#_nsws-cps.hidden{display:none;}" +
+        "#_nsws-cps-burst{transition:color 0.05s;}" +
+        "#_nsws-cps-burst.flash{color:#00ff88;}";
+    document.head.appendChild(styleEl);
+
+    function clearAll() {
+        inputTimes = [];
+        totalInputs = 0;
+        heldKeys = {};
+    }
+
+    function recordInput(t) {
+        inputTimes.push(t);
+        totalInputs++;
+        if (burstSpan) {
+            burstSpan.classList.add("flash");
+            if (burstFlashTimeout) clearTimeout(burstFlashTimeout);
+            burstFlashTimeout = setTimeout(function () {
+                if (burstSpan) burstSpan.classList.remove("flash");
+            }, 100);
+        }
+    }
+
+    document.addEventListener("keydown", function (e) {
+        if (e.repeat) return;
+        if (driveKeys[e.code] && !heldKeys[e.code]) {
+            heldKeys[e.code] = true;
+            recordInput(performance.now());
+        }
+    }, true);
+    document.addEventListener("keyup", function (e) {
+        if (driveKeys[e.code]) heldKeys[e.code] = false;
+    }, true);
+
+    function update() {
+        requestAnimationFrame(update);
+        if (!cpsEl) return;
+        var inGame = !!document.querySelector(".game-ui");
+        if (!prevInGame && inGame) {
+            // Freshly entering gameplay (loading into a track): start from a clean slate.
+            clearAll();
+            prevHasStarted = false;
+        }
+        prevInGame = inGame;
+        if (!inGame) {
+            cpsEl.classList.add("hidden");
+            return;
+        }
+        cpsEl.classList.remove("hidden");
+
+        var playerState = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
+        var hasStarted = playerState ? !!playerState.hasStarted() : false;
+        // The only moment a run's timer actually goes back to zero is when hasStarted()
+        // flips from true back to false: that happens for a full restart (the
+        // start-reset keybind) AND for a checkpoint-reset that falls back to a full
+        // restart because there's no valid checkpoint to respawn at (a "double
+        // respawn"). Catching that transition here - rather than only reacting to the
+        // checkpoint-reset flag like before - covers every kind of restart, while a
+        // normal mid-run checkpoint respawn (which keeps hasStarted() true) correctly
+        // leaves the counter alone since the timer keeps running through it.
+        if (prevHasStarted && !hasStarted) clearAll();
+        prevHasStarted = hasStarted;
+
+        var now = performance.now();
+        var cutoff = now - 1e3;
+        while (inputTimes.length && inputTimes[0] < cutoff) inputTimes.shift();
+        cpsEl.childNodes[0].nodeValue = totalInputs + "/";
+        burstSpan.textContent = inputTimes.length;
+    }
+
+    function tryInit() {
+        var uiEl = document.getElementById("ui");
+        if (!uiEl) {
+            setTimeout(tryInit, 100);
+            return;
+        }
+        cpsEl = document.createElement("div");
+        cpsEl.id = "_nsws-cps";
+        cpsEl.classList.add("hidden");
+        cpsEl.appendChild(document.createTextNode("0/"));
+        burstSpan = document.createElement("span");
+        burstSpan.id = "_nsws-cps-burst";
+        burstSpan.textContent = "0";
+        cpsEl.appendChild(burstSpan);
+        cpsEl.appendChild(document.createTextNode(" CPS"));
+        uiEl.appendChild(cpsEl);
+        requestAnimationFrame(update);
+    }
+    tryInit();
+})();
