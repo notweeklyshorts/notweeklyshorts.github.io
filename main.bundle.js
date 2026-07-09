@@ -52873,13 +52873,6 @@ window.__nswsDecrypt = async function(b64Data) {
                 ))),
                 C.get(this, Ec, "f").src = "images/logo.svg",
                 C.get(this, kc, "f").appendChild(C.get(this, Ec, "f"));
-                {
-                    const subtitle = document.createElement("div");
-                    subtitle.id = "nsws-subtitle",
-                    subtitle.textContent = "CHANGE YOUR USERNAME IN THE GARAGE TO BE RANKED",
-                    subtitle.style.cssText = "margin:18px auto 0 auto;max-width:900px;font-size:22px;font-weight:bold;color:var(--text-color);text-align:center;letter-spacing:1px;",
-                    C.get(this, kc, "f").appendChild(subtitle)
-                }
                 _o() || Ro() ? (C.set(this, zc, document.createElement("div"), "f"),
                 C.get(this, zc, "f").className = "warning-message",
                 _o() && C.get(this, zc, "f").classList.add("modded"),
