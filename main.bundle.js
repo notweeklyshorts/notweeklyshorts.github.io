@@ -165,6 +165,411 @@ window.__nswsDecrypt = async function(b64Data) {
         if (code.startsWith("Digit")) return code.slice(5);
         return code.replace(/([a-z])([A-Z])/g, "$1 $2");
     }
+    const VISUALFX_KEYBIND_STORAGE_KEY = "_visualFxKeyBind";
+    const DEFAULT_VISUALFX_KEYBIND = "KeyV";
+    function getVisualFxKeyBind() {
+        try {
+            return localStorage.getItem(VISUALFX_KEYBIND_STORAGE_KEY) || DEFAULT_VISUALFX_KEYBIND;
+        } catch (e) {
+            return DEFAULT_VISUALFX_KEYBIND;
+        }
+    }
+    function setVisualFxKeyBind(code) {
+        try {
+            localStorage.setItem(VISUALFX_KEYBIND_STORAGE_KEY, code);
+        } catch (e) {}
+    }
+    const VISUALFX_SETTINGS_STORAGE_KEY = "_visualFxSettings";
+    const VISUALFX_DEFAULTS = {
+        dof: 0,
+        motionBlur: 0,
+        chromaticAberration: 0,
+        filmGrain: 0,
+        vignette: 0,
+        saturation: 100
+    };
+    function loadVisualFxSettings() {
+        try {
+            const raw = localStorage.getItem(VISUALFX_SETTINGS_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : {};
+            return Object.assign({}, VISUALFX_DEFAULTS, parsed);
+        } catch (e) {
+            return Object.assign({}, VISUALFX_DEFAULTS);
+        }
+    }
+    function saveVisualFxSettings(s) {
+        try {
+            localStorage.setItem(VISUALFX_SETTINGS_STORAGE_KEY, JSON.stringify(s));
+        } catch (e) {}
+    }
+    // Self-contained "Visual FX" system: a keybind-toggled popup (top-right, only
+    // while actually playing a track) with sliders for Depth of Field, Motion Blur,
+    // Chromatic Aberration, Film Grain, Vignette, and Saturation, backed by a small
+    // WebGL2 post-processing pass layered directly on top of the game's own canvas.
+    // Settings persist in localStorage and are NOT touched by opening/closing the
+    // popup - only the "Reset to Default" button changes them.
+    (function() {
+        const settings = loadVisualFxSettings();
+        let menuOpen = false;
+        let menuEl = null;
+        const sliderRefs = {};
+
+        // ---------- WebGL post-processing overlay ----------
+        let fxCanvas = null, gl = null, glProgram = null;
+        let frameTex = null, texA = null, texB = null, fboA = null, fboB = null;
+        let readIsA = true;
+        let fxWidth = 0, fxHeight = 0;
+        let uLoc = {};
+        const startTime = performance.now();
+
+        function isEffectActive() {
+            return settings.dof > 0 || settings.motionBlur > 0 || settings.chromaticAberration > 0 ||
+                settings.filmGrain > 0 || settings.vignette > 0 || settings.saturation !== 100;
+        }
+
+        const VERT_SRC = "#version 300 es\n" +
+            "void main() {\n" +
+            "    vec2 pos = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));\n" +
+            "    gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);\n" +
+            "}";
+
+        const FRAG_SRC = "#version 300 es\n" +
+            "precision highp float;\n" +
+            "out vec4 outColor;\n" +
+            "uniform sampler2D uFrame;\n" +
+            "uniform sampler2D uHistory;\n" +
+            "uniform float uDof;\n" +
+            "uniform float uMotionBlur;\n" +
+            "uniform float uChroma;\n" +
+            "uniform float uGrain;\n" +
+            "uniform float uVignette;\n" +
+            "uniform float uSaturation;\n" +
+            "uniform float uTime;\n" +
+            "uniform vec2 uResolution;\n" +
+            "float rand(vec2 co) {\n" +
+            "    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453 + uTime * 13.37);\n" +
+            "}\n" +
+            "vec3 sampleChroma(vec2 uv, float amount) {\n" +
+            "    vec2 dir = uv - 0.5;\n" +
+            "    float d = length(dir);\n" +
+            "    vec2 offset = dir * amount * d;\n" +
+            "    float r = texture(uFrame, uv - offset).r;\n" +
+            "    float g = texture(uFrame, uv).g;\n" +
+            "    float b = texture(uFrame, uv + offset).b;\n" +
+            "    return vec3(r, g, b);\n" +
+            "}\n" +
+            "vec3 blurFrame(vec2 uv, float radius) {\n" +
+            "    vec3 sum = texture(uFrame, uv).rgb * 3.0;\n" +
+            "    float total = 3.0;\n" +
+            "    const int SAMPLES = 10;\n" +
+            "    for (int i = 0; i < SAMPLES; i++) {\n" +
+            "        float angle = (float(i) / float(SAMPLES)) * 6.28318;\n" +
+            "        vec2 offset = vec2(cos(angle), sin(angle)) * radius / uResolution;\n" +
+            "        sum += texture(uFrame, uv + offset).rgb;\n" +
+            "        total += 1.0;\n" +
+            "    }\n" +
+            "    return sum / total;\n" +
+            "}\n" +
+            "void main() {\n" +
+            "    vec2 uv = gl_FragCoord.xy / uResolution;\n" +
+            "    vec3 color = uChroma > 0.001 ? sampleChroma(uv, uChroma * 0.05) : texture(uFrame, uv).rgb;\n" +
+            "    if (uDof > 0.001) {\n" +
+            "        float distFromCenter = distance(uv, vec2(0.5, 0.42));\n" +
+            "        float blurAmount = smoothstep(0.22, 0.75, distFromCenter) * uDof * 16.0;\n" +
+            "        color = blurFrame(uv, blurAmount);\n" +
+            "    }\n" +
+            "    vec3 history = texture(uHistory, uv).rgb;\n" +
+            "    color = mix(color, history, uMotionBlur * 0.9);\n" +
+            "    if (uGrain > 0.001) {\n" +
+            "        float n = rand(uv * uResolution);\n" +
+            "        color += (n - 0.5) * uGrain * 0.35;\n" +
+            "    }\n" +
+            "    if (uVignette > 0.001) {\n" +
+            "        float d = distance(uv, vec2(0.5));\n" +
+            "        float vig = smoothstep(0.85, 0.3, d);\n" +
+            "        color *= mix(1.0, vig, uVignette);\n" +
+            "    }\n" +
+            "    if (abs(uSaturation - 1.0) > 0.001) {\n" +
+            "        float gray = dot(color, vec3(0.299, 0.587, 0.114));\n" +
+            "        color = mix(vec3(gray), color, uSaturation);\n" +
+            "    }\n" +
+            "    outColor = vec4(clamp(color, 0.0, 1.0), 1.0);\n" +
+            "}";
+
+        function compileShader(type, src) {
+            const sh = gl.createShader(type);
+            gl.shaderSource(sh, src);
+            gl.compileShader(sh);
+            if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+                gl.deleteShader(sh);
+                return null;
+            }
+            return sh;
+        }
+
+        function setupGL() {
+            const vs = compileShader(gl.VERTEX_SHADER, VERT_SRC);
+            const fs = compileShader(gl.FRAGMENT_SHADER, FRAG_SRC);
+            if (!vs || !fs) return false;
+            glProgram = gl.createProgram();
+            gl.attachShader(glProgram, vs);
+            gl.attachShader(glProgram, fs);
+            gl.linkProgram(glProgram);
+            if (!gl.getProgramParameter(glProgram, gl.LINK_STATUS)) return false;
+            uLoc = {
+                uFrame: gl.getUniformLocation(glProgram, "uFrame"),
+                uHistory: gl.getUniformLocation(glProgram, "uHistory"),
+                uDof: gl.getUniformLocation(glProgram, "uDof"),
+                uMotionBlur: gl.getUniformLocation(glProgram, "uMotionBlur"),
+                uChroma: gl.getUniformLocation(glProgram, "uChroma"),
+                uGrain: gl.getUniformLocation(glProgram, "uGrain"),
+                uVignette: gl.getUniformLocation(glProgram, "uVignette"),
+                uSaturation: gl.getUniformLocation(glProgram, "uSaturation"),
+                uTime: gl.getUniformLocation(glProgram, "uTime"),
+                uResolution: gl.getUniformLocation(glProgram, "uResolution")
+            };
+            frameTex = createTexture();
+            return true;
+        }
+
+        function createTexture() {
+            const t = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, t);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            return t;
+        }
+
+        function createFbo(w, h) {
+            const tex = createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, tex);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+            const fbo = gl.createFramebuffer();
+            gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+            gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            return { fbo, tex };
+        }
+
+        function resizeFx(w, h) {
+            if (w === fxWidth && h === fxHeight) return;
+            fxWidth = w;
+            fxHeight = h;
+            fxCanvas.width = w;
+            fxCanvas.height = h;
+            if (texA) gl.deleteTexture(texA);
+            if (texB) gl.deleteTexture(texB);
+            if (fboA) gl.deleteFramebuffer(fboA);
+            if (fboB) gl.deleteFramebuffer(fboB);
+            const a = createFbo(w, h);
+            const b = createFbo(w, h);
+            texA = a.tex;
+            fboA = a.fbo;
+            texB = b.tex;
+            fboB = b.fbo;
+            [fboA, fboB].forEach(fbo => {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.viewport(0, 0, w, h);
+                gl.clearColor(0, 0, 0, 1);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+            });
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        }
+
+        function ensureFx() {
+            const screenCanvas = document.getElementById("screen");
+            if (!screenCanvas) return false;
+            if (fxCanvas) return true;
+            fxCanvas = document.createElement("canvas");
+            fxCanvas.id = "_visualfx-canvas";
+            fxCanvas.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;display:none;";
+            screenCanvas.insertAdjacentElement("afterend", fxCanvas);
+            gl = fxCanvas.getContext("webgl2", { alpha: false, antialias: false, depth: false, stencil: false, preserveDrawingBuffer: false });
+            if (!gl) return false;
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            return setupGL();
+        }
+
+        function renderFx() {
+            const screenCanvas = document.getElementById("screen");
+            if (!screenCanvas || !gl) return;
+            const w = screenCanvas.width || screenCanvas.clientWidth;
+            const h = screenCanvas.height || screenCanvas.clientHeight;
+            if (!w || !h) return;
+            resizeFx(w, h);
+            gl.bindTexture(gl.TEXTURE_2D, frameTex);
+            try {
+                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, screenCanvas);
+            } catch (e) {
+                return;
+            }
+            const writeFbo = readIsA ? fboB : fboA;
+            const readTex = readIsA ? texA : texB;
+            gl.useProgram(glProgram);
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, frameTex);
+            gl.uniform1i(uLoc.uFrame, 0);
+            gl.activeTexture(gl.TEXTURE1);
+            gl.bindTexture(gl.TEXTURE_2D, readTex);
+            gl.uniform1i(uLoc.uHistory, 1);
+            gl.uniform1f(uLoc.uDof, settings.dof / 100);
+            gl.uniform1f(uLoc.uMotionBlur, Math.min(settings.motionBlur, 95) / 100);
+            gl.uniform1f(uLoc.uChroma, settings.chromaticAberration / 100);
+            gl.uniform1f(uLoc.uGrain, settings.filmGrain / 100);
+            gl.uniform1f(uLoc.uVignette, settings.vignette / 100);
+            gl.uniform1f(uLoc.uSaturation, settings.saturation / 100);
+            gl.uniform1f(uLoc.uTime, (performance.now() - startTime) / 1000);
+            gl.uniform2f(uLoc.uResolution, w, h);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, writeFbo);
+            gl.viewport(0, 0, w, h);
+            gl.disable(gl.DEPTH_TEST);
+            gl.disable(gl.BLEND);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            gl.bindFramebuffer(gl.READ_FRAMEBUFFER, writeFbo);
+            gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+            gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            readIsA = !readIsA;
+        }
+
+        function fxLoop() {
+            requestAnimationFrame(fxLoop);
+            const inGame = !!document.querySelector(".game-ui");
+            const shouldRun = inGame && isEffectActive();
+            if (!fxCanvas) {
+                if (!shouldRun) return;
+                if (!ensureFx()) return;
+            }
+            fxCanvas.style.display = shouldRun ? "block" : "none";
+            if (!shouldRun) return;
+            renderFx();
+        }
+        requestAnimationFrame(fxLoop);
+
+        // ---------- Popup menu ----------
+        function fmtPct(v) {
+            return Math.round(v) + "%";
+        }
+        const SLIDER_DEFS = [
+            { key: "dof", label: "Depth of Field", min: 0, max: 100 },
+            { key: "motionBlur", label: "Motion Blur", min: 0, max: 100 },
+            { key: "chromaticAberration", label: "Chromatic Aberration", min: 0, max: 100 },
+            { key: "filmGrain", label: "Film Grain", min: 0, max: 100 },
+            { key: "vignette", label: "Vignette", min: 0, max: 100 },
+            { key: "saturation", label: "Saturation", min: 0, max: 200 }
+        ];
+
+        function ensureStyles() {
+            if (document.getElementById("_visualfx-style")) return;
+            const st = document.createElement("style");
+            st.id = "_visualfx-style";
+            st.textContent = "#_visualfx-menu{position:fixed;top:calc(16px + var(--safe-area-top, 0px));right:calc(16px + var(--safe-area-right, 0px));width:300px;max-width:calc(100vw - 32px);background:var(--surface-color);border:2px solid var(--surface-tertiary-color);clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);padding:14px 18px 16px 18px;z-index:10000;pointer-events:auto;font-family:ForcedSquare,Arial,sans-serif;font-style:italic;color:var(--text-color);box-shadow:0 8px 24px rgba(0,0,0,0.5);}" +
+                "#_visualfx-menu h2{margin:0 0 10px 0;font-size:20px;letter-spacing:1px;text-align:center;}" +
+                "#_visualfx-menu ._vfx-row{margin:0 0 10px 0;}" +
+                "#_visualfx-menu ._vfx-row-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px;opacity:0.9;}" +
+                "#_visualfx-menu ._vfx-row-label span:last-child{opacity:0.7;}" +
+                "#_visualfx-menu input[type=\"range\"]{width:100%;display:block;}" +
+                "#_visualfx-menu ._vfx-reset{width:100%;margin-top:6px;font-size:16px;padding:6px 10px;text-align:center;}" +
+                "#_visualfx-menu ._vfx-hint{margin-top:8px;font-size:11px;text-align:center;opacity:0.55;}";
+            document.head.appendChild(st);
+        }
+
+        function updateSlider(key) {
+            const ref = sliderRefs[key];
+            if (!ref) return;
+            ref.input.value = settings[key];
+            ref.value.textContent = fmtPct(settings[key]);
+        }
+
+        function buildMenu() {
+            ensureStyles();
+            menuEl = document.createElement("div");
+            menuEl.id = "_visualfx-menu";
+            const title = document.createElement("h2");
+            title.textContent = "VISUAL FX";
+            menuEl.appendChild(title);
+            SLIDER_DEFS.forEach(def => {
+                const row = document.createElement("div");
+                row.className = "_vfx-row";
+                const labelRow = document.createElement("div");
+                labelRow.className = "_vfx-row-label";
+                const labelText = document.createElement("span");
+                labelText.textContent = def.label;
+                const valueText = document.createElement("span");
+                valueText.textContent = fmtPct(settings[def.key]);
+                labelRow.appendChild(labelText);
+                labelRow.appendChild(valueText);
+                row.appendChild(labelRow);
+                const input = document.createElement("input");
+                input.type = "range";
+                input.min = String(def.min);
+                input.max = String(def.max);
+                input.step = "1";
+                input.value = String(settings[def.key]);
+                input.addEventListener("input", () => {
+                    settings[def.key] = Number(input.value);
+                    valueText.textContent = fmtPct(settings[def.key]);
+                    saveVisualFxSettings(settings);
+                });
+                row.appendChild(input);
+                menuEl.appendChild(row);
+                sliderRefs[def.key] = { input, value: valueText };
+            });
+            const resetBtn = document.createElement("button");
+            resetBtn.className = "button _vfx-reset";
+            resetBtn.textContent = "Reset to Default";
+            resetBtn.addEventListener("click", () => {
+                Object.assign(settings, VISUALFX_DEFAULTS);
+                saveVisualFxSettings(settings);
+                SLIDER_DEFS.forEach(def => updateSlider(def.key));
+            });
+            menuEl.appendChild(resetBtn);
+            const hint = document.createElement("div");
+            hint.className = "_vfx-hint";
+            hint.textContent = "Press " + formatClipKeyName(getVisualFxKeyBind()) + " to hide";
+            menuEl.appendChild(hint);
+            document.body.appendChild(menuEl);
+        }
+
+        function setMenuVisible(visible) {
+            menuOpen = visible;
+            if (visible) {
+                if (!menuEl) buildMenu();
+                else {
+                    const hint = menuEl.querySelector("._vfx-hint");
+                    if (hint) hint.textContent = "Press " + formatClipKeyName(getVisualFxKeyBind()) + " to hide";
+                }
+                menuEl.style.display = "block";
+            } else if (menuEl) {
+                menuEl.style.display = "none";
+            }
+        }
+
+        function toggleVisualFxMenu() {
+            setMenuVisible(!menuOpen);
+        }
+        window.__nswsToggleVisualFxMenu = toggleVisualFxMenu;
+
+        // Auto-minimize (never reset the sliders) if the player leaves the
+        // track/game screen while the popup happens to be open.
+        new MutationObserver(() => {
+            if (menuOpen && !document.querySelector(".game-ui")) setMenuVisible(false);
+        }).observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        window.addEventListener("keydown", e => {
+            if (window.__bwClipKeyBindCapturing || window.__bwVisualFxKeyBindCapturing) return;
+            const target = e.target;
+            if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+            if (e.code !== getVisualFxKeyBind() || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+            if (!document.querySelector(".game-ui")) return;
+            toggleVisualFxMenu();
+        });
+    })();
     function formatClipDate(ms) {
         try {
             return new Date(ms).toLocaleString(undefined, {
@@ -49695,6 +50100,43 @@ window.__nswsDecrypt = async function(b64Data) {
                 _refresh();
                 _wrap.appendChild(_offBtn);
                 _wrap.appendChild(_onBtn);
+                _row.appendChild(_wrap);
+                _container.appendChild(_row);
+            }
+            )(),
+            C.get(this, ms, "m", Ds).call(this, "Visual Effects"),
+            ( () => {
+                const _container = C.get(this, ks, "f");
+                const _row = document.createElement("div");
+                _row.className = "setting key-binding";
+                const _label = document.createElement("p");
+                _label.textContent = "Toggle visual FX menu";
+                _row.appendChild(_label);
+                const _wrap = document.createElement("div");
+                _wrap.className = "button-wrapper";
+                const _keyBtn = document.createElement("button");
+                _keyBtn.className = "button";
+                _keyBtn.textContent = formatClipKeyName(getVisualFxKeyBind());
+                _keyBtn.addEventListener("click", ( () => {
+                    _keyBtn.textContent = "Press any key...";
+                    window.__bwVisualFxKeyBindCapturing = true;
+                    const _capture = ev => {
+                        if (ev.code === "Escape") {
+                            _keyBtn.textContent = formatClipKeyName(getVisualFxKeyBind());
+                            window.removeEventListener("keydown", _capture);
+                            window.__bwVisualFxKeyBindCapturing = false;
+                            return;
+                        }
+                        setVisualFxKeyBind(ev.code);
+                        _keyBtn.textContent = formatClipKeyName(ev.code);
+                        window.removeEventListener("keydown", _capture);
+                        window.__bwVisualFxKeyBindCapturing = false;
+                        ev.preventDefault();
+                    };
+                    window.addEventListener("keydown", _capture);
+                }
+                ));
+                _wrap.appendChild(_keyBtn);
                 _row.appendChild(_wrap);
                 _container.appendChild(_row);
             }
