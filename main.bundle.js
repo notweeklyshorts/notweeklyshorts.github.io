@@ -58229,10 +58229,18 @@ window.__nswsDecrypt = async function(b64Data) {
         if (_storedMinPlayers !== null) minPlayersRuleEnabled = _storedMinPlayers === "true";
     } catch (e) {}
 
-    function extractTimeSeconds(t) {
-        if (t == null) return null;
-        if (typeof t === "number") return t;
-        if (typeof t.time === "number") return t.time;
+    // The leaderboard entry's `.time` field is an ISO-8601 submission TIMESTAMP
+    // ("2026-07-06T08:33:24.000Z"), not the race time — that was the actual bug.
+    // The real finish time lives in `.frames` (the game simulates at 1000Hz, same
+    // as the frames/1e3 conversions used elsewhere in main.bundle.js), so it has
+    // to be divided by 1000 to get seconds. Takes the whole leaderboard entry now,
+    // not just its .time field, so it can reach .frames.
+    function extractTimeSeconds(entry) {
+        if (entry == null) return null;
+        if (typeof entry === "number") return entry;
+        if (typeof entry.frames === "number") return entry.frames / 1000;
+        // Fallback for any shape that already hands back a plain numeric time.
+        if (typeof entry.time === "number") return entry.time;
         return null;
     }
 
@@ -58296,7 +58304,7 @@ window.__nswsDecrypt = async function(b64Data) {
                     }
                     if (e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target && !isNicknameBanned(e.nickname)) {
                         dbg.matched = true;
-                        return extractTimeSeconds(e.time);
+                        return extractTimeSeconds(e);
                     }
                 }
                 var nextSkip = skip + entries.length;
