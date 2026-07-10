@@ -58507,7 +58507,7 @@ window.__nswsDecrypt = async function(b64Data) {
             "@keyframes nsws-medal-record-animation{" + "0%{opacity:0;transform:scaleX(0.5);background-color:var(--nsws-medal-bright);}" + "80%{opacity:1;transform:scaleX(1.1);}" + "100%{opacity:1;transform:scaleX(1);background-color:var(--nsws-medal-soft);}" + "}",
             ".nsws-medal-badge{margin:0 0 16px 0;padding:10px 12px;box-sizing:border-box;display:flex;align-items:center;background-color:var(--surface-secondary-color);color:var(--text-color);}",
             ".nsws-medal-badge>.icon{flex-shrink:0;margin-right:10px;font-size:30px;line-height:1;}",
-            ".nsws-medal-badge>.icon>img.tier-icon{height:0.75em;vertical-align:middle;}",
+            ".nsws-medal-badge>.icon>img.tier-icon{height:1em;vertical-align:middle;}",
             ".nsws-medal-badge>.text{flex-grow:1;min-width:0;}",
             ".nsws-medal-badge>.text>.title{font-size:20px;font-weight:bold;color:var(--text-color);}",
             ".nsws-medal-badge>.text>.detail{font-size:15px;opacity:0.7;color:var(--text-color);}",
