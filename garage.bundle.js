@@ -346,9 +346,11 @@
                     i.get(this, j, "f").value = t
                 }
                 ));
+                const __nswsNicknameBanned = typeof window.__nswsIsNicknameBanned === "function" && window.__nswsIsNicknameBanned(o?.nickname ?? e);
+                __nswsNicknameBanned && (i.get(this, j, "f").disabled = !0);
                 const v = document.createElement("div");
                 v.className = "description",
-                v.textContent = t.get("Choose a nickname to be shown in the leaderboard. Your nickname can be changed at any time."),
+                v.textContent = __nswsNicknameBanned ? t.get("Your profile has been banned. You cannot change your nickname.") : t.get("Choose a nickname to be shown in the leaderboard. Your nickname can be changed at any time."),
                 u.appendChild(v);
                 const w = document.createElement("div");
                 w.className = "box",
@@ -709,16 +711,20 @@
                 }
                 )),
                 g.appendChild(f);
-                const p = document.createElement("button");
-                p.className = "button right",
-                p.innerHTML = '<img class="button-icon" src="images/import.svg"> ',
-                p.append(document.createTextNode(t.get("Import"))),
-                p.addEventListener("click", ( () => {
-                    n.playUIClick(),
-                    o()
+                const __nswsCurrentNickname = e.getCurrentUserProfile()?.nickname;
+                const __nswsIsBanned = typeof window.__nswsIsNicknameBanned === "function" && window.__nswsIsNicknameBanned(__nswsCurrentNickname);
+                if (!__nswsIsBanned) {
+                    const p = document.createElement("button");
+                    p.className = "button right",
+                    p.innerHTML = '<img class="button-icon" src="images/import.svg"> ',
+                    p.append(document.createTextNode(t.get("Import"))),
+                    p.addEventListener("click", ( () => {
+                        n.playUIClick(),
+                        o()
+                    }
+                    )),
+                    g.appendChild(p)
                 }
-                )),
-                g.appendChild(p),
                 window.addEventListener("keydown", i.set(this, vt, (t => {
                     "Escape" == t.code && (s(),
                     t.preventDefault())

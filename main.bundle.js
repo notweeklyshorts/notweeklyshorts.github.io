@@ -58339,6 +58339,7 @@ window.__nswsDecrypt = async function(b64Data) {
         if (!banlist.length) return false;
         return banlist.indexOf(String(nickname || "").trim().toLowerCase()) !== -1;
     }
+    window.__nswsIsNicknameBanned = isNicknameBanned;
 
     // Fetches the nicknames of the top `count` leaderboard entries (i.e. everyone ranked
     // above the player). Returns null on fetch failure so callers can fail safe.
