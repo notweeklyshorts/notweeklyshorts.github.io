@@ -58645,7 +58645,7 @@ window.__nswsDecrypt = async function(b64Data) {
                 var store = loadStore();
                 var prev = store[trackId];
                 var percentile = placement ? placement.position / placement.total : null;
-                var unchanged = prev && prev.tier === tier.id
+                var unchanged = prev && prev.tier === tier.id && prev.at === result.at
                     && (tier.id === "author" ? prev.time === pbSeconds : (prev.rank === placement.position && prev.total === placement.total));
                 if (unchanged) return false;
                 store[trackId] = {
