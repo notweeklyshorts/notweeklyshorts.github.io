@@ -58236,6 +58236,13 @@ window.__nswsDecrypt = async function(b64Data) {
         return null;
     }
 
+    // Sentinel distinguishing "the fetch/scan itself failed" (network error, HTTP
+    // error, bad JSON) from a legitimate result of null (scanned the whole
+    // leaderboard and Cookedbyapringle genuinely has no entry on this track).
+    // Conflating these two was the bug: a transient failure was being read as
+    // "confirmed no AT", which wiped out valid, previously-earned medal records.
+    var FETCH_FAILED = {};
+
     // In-memory cache of the fetched AT per track, so we're not re-hitting the
     // leaderboard endpoint on every single tier check within the same session.
     var benchmarkCache = {};
@@ -58280,8 +58287,12 @@ window.__nswsDecrypt = async function(b64Data) {
             benchmarkCache[trackId] = { value: at, ts: Date.now() };
             console.debug("[nsws] benchmark AT for track", trackId, "=", at);
             return at;
-        }).catch(function () {
-            return null;
+        }).catch(function (err) {
+            // Do NOT cache this and do NOT return null here: null is the "confirmed
+            // absent" result and gets treated as such by every caller. A thrown
+            // network/HTTP/parse error means we simply don't know yet.
+            console.debug("[nsws] benchmark AT fetch FAILED for track", trackId, err && err.message);
+            return FETCH_FAILED;
         });
     }
 
@@ -58304,7 +58315,10 @@ window.__nswsDecrypt = async function(b64Data) {
     // with the time-window check above to get the final tier for a run.
     function determineTierAsync(trackId, finishSeconds) {
         return fetchBenchmarkAT(trackId).then(function (at) {
-            return { tier: tierForTime(finishSeconds, at), at: at };
+            if (at === FETCH_FAILED) {
+                return { tier: null, at: null, fetchFailed: true };
+            }
+            return { tier: tierForTime(finishSeconds, at), at: at, fetchFailed: false };
         });
     }
 
@@ -58654,9 +58668,16 @@ window.__nswsDecrypt = async function(b64Data) {
             }
         } else {
             el.classList.add("no-medal");
-            icon.textContent = "\uD83C\uDFC1";
-            title.textContent = "No medal yet";
-            detail.textContent = "Beat the Bronze medal time (or the Author Time) to earn one";
+            var dbgNow = lastDebugInfo[trackId];
+            if (dbgNow && dbgNow.fetchFailed) {
+                icon.textContent = "\u26A0\uFE0F";
+                title.textContent = "Couldn't check medal";
+                detail.textContent = "Benchmark leaderboard didn't respond — try again in a moment";
+            } else {
+                icon.textContent = "\uD83C\uDFC1";
+                title.textContent = "No medal yet";
+                detail.textContent = "Beat the Bronze medal time (or the Author Time) to earn one";
+            }
         }
         var dbg = lastDebugInfo[trackId];
         if (dbg) {
@@ -58677,11 +58698,17 @@ window.__nswsDecrypt = async function(b64Data) {
                     tier: tier ? tier.id : null,
                     rank: placement ? placement.position : null,
                     total: placement ? placement.total : null,
+                    fetchFailed: !!result.fetchFailed,
                     ts: Date.now()
                 };
                 var store = loadStore();
                 var prev = store[trackId];
                 if (!tier) {
+                    // If the benchmark leaderboard scan itself failed (network error, proxy
+                    // hiccup, etc.), that is NOT the same as confirming no AT exists. Leave
+                    // any previously-earned record alone instead of erasing it — we'll just
+                    // try again the next time this panel opens.
+                    if (result.fetchFailed) return false;
                     // No tier could be determined this time (e.g. no AT could be found).
                     // Don't leave a stale/possibly-wrong record sitting there forever.
                     if (prev) {
