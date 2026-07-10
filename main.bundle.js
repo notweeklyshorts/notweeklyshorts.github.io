@@ -58196,6 +58196,25 @@ window.__nswsDecrypt = async function(b64Data) {
 
     var AUTHOR_MEDAL_IMAGE_PATH = "images/medals/author.png";
 
+    // One-time cleanup: earlier versions of this benchmark search could cache a wrong
+    // AT (e.g. from the old top-500-only scan / WR fallback). Wipe every previously
+    // stored medal record, across all profile slots, exactly once, so nothing wrong
+    // survives from before the fix. Guarded by a version flag so this doesn't run again
+    // (and doesn't erase legitimately-recomputed records) on every load.
+    var STORAGE_SCHEMA_VERSION = "2";
+    var STORAGE_SCHEMA_VERSION_KEY = "_nswsMedalsSchemaVersion";
+    try {
+        if (localStorage.getItem(STORAGE_SCHEMA_VERSION_KEY) !== STORAGE_SCHEMA_VERSION) {
+            var keysToRemove = [];
+            for (var _i = 0; _i < localStorage.length; _i++) {
+                var _k = localStorage.key(_i);
+                if (_k && _k.indexOf(STORAGE_KEY + ":") === 0) keysToRemove.push(_k);
+            }
+            keysToRemove.forEach(function (k) { localStorage.removeItem(k); });
+            localStorage.setItem(STORAGE_SCHEMA_VERSION_KEY, STORAGE_SCHEMA_VERSION);
+        }
+    } catch (e) {}
+
     var enabled = true;
     try {
         var _stored = localStorage.getItem(ENABLED_KEY);
@@ -58641,9 +58660,18 @@ window.__nswsDecrypt = async function(b64Data) {
         return fetchPlacement(trackId).then(function (placement) {
             return determineTierAsync(trackId, pbSeconds).then(function (result) {
                 var tier = result.tier;
-                if (!tier) return false;
                 var store = loadStore();
                 var prev = store[trackId];
+                if (!tier) {
+                    // No tier could be determined this time (e.g. no AT could be found).
+                    // Don't leave a stale/possibly-wrong record sitting there forever.
+                    if (prev) {
+                        delete store[trackId];
+                        saveStore(store);
+                        return true;
+                    }
+                    return false;
+                }
                 var percentile = placement ? placement.position / placement.total : null;
                 var unchanged = prev && prev.tier === tier.id && prev.at === result.at
                     && (tier.id === "author" ? prev.time === pbSeconds : (prev.rank === placement.position && prev.total === placement.total));
