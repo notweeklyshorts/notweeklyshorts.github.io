@@ -58429,7 +58429,7 @@ window.__nswsDecrypt = async function(b64Data) {
     }
 
     function formatSeconds(sec) {
-        return sec.toFixed(2) + "s";
+        return sec == null ? "--" : sec.toFixed(2) + "s";
     }
 
     function injectCSS() {
@@ -58615,7 +58615,7 @@ window.__nswsDecrypt = async function(b64Data) {
             title.textContent = (tier ? tier.label : record.tier) + " Medal";
             title.style.color = tier ? tier.color : "";
             if (record.tier === "author") {
-                detail.textContent = "Time: " + formatSeconds(record.time) + " \u2022 Author: " + formatSeconds(record.at);
+                detail.textContent = "Time: " + formatSeconds(record.time) + (record.at != null ? " \u2022 Author: " + formatSeconds(record.at) : "");
             } else {
                 detail.textContent = "Time: " + formatSeconds(record.time) + (record.at != null ? " \u2022 Author Time: " + formatSeconds(record.at) : "");
             }
