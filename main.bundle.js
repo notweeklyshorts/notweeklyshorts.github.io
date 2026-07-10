@@ -58257,15 +58257,6 @@ window.__nswsDecrypt = async function(b64Data) {
     // Last computed pb/at/tier per track, purely for surfacing via a hover tooltip on
     // the badge (devtools-free way to see exactly what values were used/found).
     var lastDebugInfo = {};
-    // Raw diagnostic trail of the most recent scan attempt per track: every URL hit,
-    // what came back, and why a match was or wasn't found. Rendered directly in the
-    // page (see buildMedalBadgeEl) since devtools may not be available to read it.
-    var lastScanDebug = {};
-
-    function truncate(s, n) {
-        s = String(s);
-        return s.length > n ? s.slice(0, n) + "…" : s;
-    }
 
     function fetchBenchmarkAT(trackId) {
         var cached = benchmarkCache[trackId];
@@ -58273,14 +58264,10 @@ window.__nswsDecrypt = async function(b64Data) {
             return Promise.resolve(cached.value);
         }
         var target = BENCHMARK_NICKNAME.trim().toLowerCase();
-        var dbg = { url: null, pages: 0, entriesSeen: 0, total: null, sampleNicknames: [], firstEntryRaw: null, httpStatus: null, error: null, matched: false };
-        lastScanDebug[trackId] = dbg;
 
         function fetchPage(skip) {
             var url = LB_URL + "&trackId=" + encodeURIComponent(trackId) + "&skip=" + skip + "&amount=" + BENCHMARK_PAGE_SIZE;
-            dbg.url = url;
             return fetch(url).then(function (r) {
-                dbg.httpStatus = r.status;
                 if (!r.ok) throw new Error("HTTP " + r.status);
                 return r.json();
             });
@@ -58289,21 +58276,11 @@ window.__nswsDecrypt = async function(b64Data) {
         function scan(skip) {
             if (skip >= BENCHMARK_SCAN_HARD_CAP) return null;
             return fetchPage(skip).then(function (data) {
-                dbg.pages++;
                 var entries = data && Array.isArray(data.entries) ? data.entries : [];
                 var total = typeof data?.total === "number" ? data.total : null;
-                dbg.total = total;
-                if (dbg.pages === 1) {
-                    dbg.firstEntryRaw = entries.length ? truncate(JSON.stringify(entries[0]), 220) : (data ? "no .entries[] array — raw keys: " + truncate(JSON.stringify(Object.keys(data || {})), 150) : "empty/null response body");
-                }
                 for (var i = 0; i < entries.length; i++) {
                     var e = entries[i];
-                    dbg.entriesSeen++;
-                    if (e && typeof e.nickname === "string" && dbg.sampleNicknames.length < 12) {
-                        dbg.sampleNicknames.push(e.nickname);
-                    }
                     if (e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target && !isNicknameBanned(e.nickname)) {
-                        dbg.matched = true;
                         return extractTimeSeconds(e);
                     }
                 }
@@ -58320,11 +58297,10 @@ window.__nswsDecrypt = async function(b64Data) {
             console.debug("[nsws] benchmark AT for track", trackId, "=", at);
             return at;
         }).catch(function (err) {
-            dbg.error = err && err.message ? err.message : String(err);
             // Do NOT cache this and do NOT return null here: null is the "confirmed
             // absent" result and gets treated as such by every caller. A thrown
             // network/HTTP/parse error means we simply don't know yet.
-            console.debug("[nsws] benchmark AT fetch FAILED for track", trackId, dbg.error);
+            console.debug("[nsws] benchmark AT fetch FAILED for track", trackId, err && err.message);
             return FETCH_FAILED;
         });
     }
@@ -58524,20 +58500,19 @@ window.__nswsDecrypt = async function(b64Data) {
             ".nsws-medal-popup{position:fixed;left:0;top:44%;width:100%;margin:0;padding:10px 0;box-sizing:border-box;text-align:center;pointer-events:none;opacity:0;z-index:9999;font-family:ForcedSquare,Arial,sans-serif;}",
             ".nsws-medal-popup.show{animation:0.25s ease-out 0s 1 normal forwards running nsws-medal-record-animation;}",
             ".nsws-medal-popup>.tier{margin:0;font-size:56px;font-weight:bold;text-shadow:3px 3px 0 #000,0 0 3px #000;}",
-            ".nsws-medal-popup>.tier>img.tier-icon{height:1em;vertical-align:middle;margin-right:6px;filter:drop-shadow(3px 3px 0 #000);}",
+            ".nsws-medal-popup>.tier>img.tier-icon{height:0.5em;vertical-align:middle;margin-right:6px;filter:drop-shadow(3px 3px 0 #000);}",
+            ".time-announcer-ui>.record>img.tier-icon{height:1em;vertical-align:middle;margin-right:6px;filter:drop-shadow(2px 2px 0 #000);}",
             ".nsws-medal-popup>.sub{margin:2px 0 0 0;font-size:22px;color:#fff;text-shadow:2px 2px 0 #000,0 0 3px #000;opacity:0.9;}",
             ".nsws-medal-popup>.badge{margin:2px 0 0 0;font-size:15px;color:#fff;text-shadow:1px 1px 0 #000;opacity:0.7;font-style:italic;}",
             "@keyframes nsws-medal-record-animation{" + "0%{opacity:0;transform:scaleX(0.5);background-color:var(--nsws-medal-bright);}" + "80%{opacity:1;transform:scaleX(1.1);}" + "100%{opacity:1;transform:scaleX(1);background-color:var(--nsws-medal-soft);}" + "}",
-            ".nsws-medal-badge{margin:0 0 16px 0;padding:10px 12px;box-sizing:border-box;display:flex;flex-direction:column;background-color:var(--surface-secondary-color);color:var(--text-color);}",
-            ".nsws-medal-badge>.row{display:flex;align-items:center;}",
+            ".nsws-medal-badge{margin:0 0 16px 0;padding:10px 12px;box-sizing:border-box;display:flex;align-items:center;background-color:var(--surface-secondary-color);color:var(--text-color);}",
             ".nsws-medal-badge>.icon{flex-shrink:0;margin-right:10px;font-size:30px;line-height:1;}",
-            ".nsws-medal-badge>.icon>img.tier-icon{height:1em;vertical-align:middle;}",
+            ".nsws-medal-badge>.icon>img.tier-icon{height:0.5em;vertical-align:middle;}",
             ".nsws-medal-badge>.text{flex-grow:1;min-width:0;}",
             ".nsws-medal-badge>.text>.title{font-size:20px;font-weight:bold;color:var(--text-color);}",
             ".nsws-medal-badge>.text>.detail{font-size:15px;opacity:0.7;color:var(--text-color);}",
             ".nsws-medal-badge.no-medal{opacity:0.5;}",
-            ".nsws-medal-badge.no-medal>.text>.title{font-weight:normal;font-style:italic;}",
-            ".nsws-medal-debug{margin:8px 0 0 0;padding:6px 8px;font-family:monospace;font-size:11px;line-height:1.5;color:#8fe3ff;background:rgba(0,0,0,0.4);border-radius:4px;white-space:pre-wrap;word-break:break-all;text-align:left;}"
+            ".nsws-medal-badge.no-medal>.text>.title{font-weight:normal;font-style:italic;}"
         ].join("");
         document.head.appendChild(style);
     }
@@ -58670,29 +58645,6 @@ window.__nswsDecrypt = async function(b64Data) {
         activeBanner = { type: "popup", el: el, timeoutId: timeoutId };
     }
 
-    function buildMedalDebugEl(trackId) {
-        var info = lastDebugInfo[trackId];
-        var scanDbg = lastScanDebug[trackId];
-        if (!info && !scanDbg) return null;
-        var box = document.createElement("pre");
-        box.className = "nsws-medal-debug";
-        var lines = [];
-        if (info) {
-            lines.push("pb=" + info.pb + "  at=" + info.at + "  tier=" + (info.tier || "none") + "  rank=" + info.rank + "/" + info.total + "  fetchFailed=" + !!info.fetchFailed);
-        }
-        if (scanDbg) {
-            lines.push("url: " + scanDbg.url);
-            lines.push("httpStatus=" + scanDbg.httpStatus + "  pages=" + scanDbg.pages + "  entriesSeen=" + scanDbg.entriesSeen + "  total=" + scanDbg.total + "  matched=" + scanDbg.matched);
-            if (scanDbg.error) lines.push("ERROR: " + scanDbg.error);
-            if (scanDbg.firstEntryRaw) lines.push("first entry: " + scanDbg.firstEntryRaw);
-            if (scanDbg.sampleNicknames && scanDbg.sampleNicknames.length) {
-                lines.push("nicknames seen (first page): " + scanDbg.sampleNicknames.join(", "));
-            }
-        }
-        box.textContent = lines.join("\n");
-        return box;
-    }
-
     function buildMedalBadgeEl(trackId) {
         var store = loadStore();
         var record = store[trackId];
@@ -58741,13 +58693,8 @@ window.__nswsDecrypt = async function(b64Data) {
         if (dbg) {
             el.title = "pb=" + dbg.pb + " at=" + dbg.at + " tier=" + (dbg.tier || "none") + " rank=" + dbg.rank + "/" + dbg.total;
         }
-        var row = document.createElement("div");
-        row.className = "row";
-        row.appendChild(icon);
-        row.appendChild(text);
-        el.appendChild(row);
-        var debugEl = buildMedalDebugEl(trackId);
-        if (debugEl) el.appendChild(debugEl);
+        el.appendChild(icon);
+        el.appendChild(text);
         return el;
     }
 
