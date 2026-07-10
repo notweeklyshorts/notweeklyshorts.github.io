@@ -58238,18 +58238,28 @@ window.__nswsDecrypt = async function(b64Data) {
             var at = null;
             for (var i = 0; i < entries.length; i++) {
                 var e = entries[i];
-                if (e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target) {
+                if (e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target && !isNicknameBanned(e.nickname)) {
                     at = extractTimeSeconds(e.time);
                     break;
                 }
             }
             if (at == null) {
                 // Cookedbyapringle has no run here (or is ranked outside the scan window):
-                // fall back to 0.5s behind whoever holds the world record.
-                var wrTime = entries.length ? extractTimeSeconds(entries[0].time) : null;
+                // fall back to 0.5s behind whoever holds the *legitimate* world record.
+                // onlyVerified=false means entries[0] can be a banned/cheated time, so walk
+                // down until we hit a non-banned nickname (mirrors isWorldRecord's logic).
+                var wrTime = null;
+                for (var j = 0; j < entries.length; j++) {
+                    var wrEntry = entries[j];
+                    if (wrEntry && !isNicknameBanned(wrEntry.nickname)) {
+                        wrTime = extractTimeSeconds(wrEntry.time);
+                        break;
+                    }
+                }
                 at = wrTime != null ? wrTime + BENCHMARK_FALLBACK_OFFSET : null;
             }
             benchmarkCache[trackId] = { value: at, ts: Date.now() };
+            console.debug("[nsws] benchmark AT for track", trackId, "=", at, "(matched entry:", entries.find(function (e) { return e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target; }) || null, ", top entry:", entries[0] || null, ")");
             return at;
         }).catch(function () {
             return null;
