@@ -58171,36 +58171,29 @@ window.__nswsDecrypt = async function(b64Data) {
         runId++;
     }
 
-    // Author Times (seconds) per track. Beating this earns the top "Author" tier
-    // regardless of leaderboard rank. Keyed by the same trackId used in __nswsWeeks.
-    var AT_TIMES = {
-        // Week 1
-        "8a12fc3f6ae6bc9fb3d60b8fd56944478e5634f14221ecd91a2a4177106b531a": 15.9,
-        "2909df017040a62807141541da1ec9c2839437bd75a6f882e1609c71ae461b5c": 16.8,
-        "84e8bca12bc7a171e44d4bf377c4abe130a4f2427d8e24b11f62334326deaa3b": 8.8,
-        "0f5e7f9d5bc9806f7ddf46c874909954aa72604299a7d1dd7e5b364080d9d63f": 16.22,
-        "05712abed8a0bf53c32c81489769705a7beb1cbd75f84400d50ef1d270fb416e": 15.55,
-        // Week 2
-        "8a5c37b4840713ca9d8c71f7c8bde514f6f63e695914b4edcd70a3fdd7930ee0": 14.8,
-        "68dedebe6eeed293775cc8593ad14e6070a0529dbc7acceec7441c844e41838e": 13.72,
-        "9af28cca21b8eeb207055536883512df85c6ab31ed380058fec290b6f765e469": 10.3,
-        "7216b418fb57f0a4b2c2f8083caaa1fc1e54563e9cda00bd85bdea61075d7db2": 15.29,
-        "c9c0977d2d40c589420482020762af2a09cdf1aa372807377b6fcdeb48bc714d": 19.6,
-        // Week 3
-        "e8ab7421b7b57a61d4936cd1dcd616cb430b6b7fbe59eec5f042a72289d565a0": 15.7,
-        "a95b8ce106322b1cd8d1cf96a15a8aa9d421037f3f385205e6fda814ed1630ca": 15.8,
-        "443d1017f4883bb049cb6852d636fa9460223306fe3029c785da90bbe3576301": 11.3,
-        "0c19dd161569a92a7327c9ce52df1a38d84317eb52366008e2991536304278a0": 18,
-        "7da404afa8a3171e1e69d72aaa69819b425e1160262855a63524b86d12ffac41": 17.2
-    };
+    // The "Author Time" (AT) for a track is Cookedbyapringle's own leaderboard time on
+    // that track, fetched live rather than hardcoded. Beating it earns the top "Author"
+    // tier regardless of leaderboard rank. Gold/Silver/Bronze are then time windows off
+    // of that same AT (rounded to the nearest second), instead of leaderboard percentile.
+    var BENCHMARK_NICKNAME = "Cookedbyapringle";
+    // If Cookedbyapringle has no run on a track, AT falls back to 0.5s slower than
+    // whoever currently holds the world record on that track.
+    var BENCHMARK_FALLBACK_OFFSET = 0.5;
+    // How many leaderboard entries to scan (in one page) looking for Cookedbyapringle's
+    // run. Community weekly leaderboards are small, so this comfortably covers them;
+    // if Cookedbyapringle is ranked outside this window they're treated the same as
+    // having no run at all (i.e. the fallback below kicks in).
+    var BENCHMARK_SCAN_LIMIT = 500;
+    var GOLD_MULTIPLIER = 1.05;
+    var SILVER_MULTIPLIER = 1.1;
+    var BRONZE_MULTIPLIER = 1.2;
+    var BENCHMARK_CACHE_TTL_MS = 5 * 60 * 1000;
 
-    // Percentile-based tiers (position / total on the leaderboard), same mechanic as before.
-    // "Author" is handled separately below via AT_TIMES, since it's time-based, not rank-based.
     var AUTHOR_TIER = { id: "author", label: "Author", color: "#8fe3ff", bright: "#8fe3ff", soft: "rgba(143,227,255,0.3)" };
     var TIERS = [
-        { id: "gold", label: "Gold", max: .30, color: "#ffd54a", bright: "#ffd54a", soft: "rgba(255,213,74,0.3)" },
-        { id: "silver", label: "Silver", max: .50, color: "#d9d9e3", bright: "#d9d9e3", soft: "rgba(217,217,227,0.3)" },
-        { id: "bronze", label: "Bronze", max: .85, color: "#d08a4a", bright: "#d08a4a", soft: "rgba(208,138,74,0.3)" }
+        { id: "gold", label: "Gold", color: "#ffd54a", bright: "#ffd54a", soft: "rgba(255,213,74,0.3)" },
+        { id: "silver", label: "Silver", color: "#d9d9e3", bright: "#d9d9e3", soft: "rgba(217,217,227,0.3)" },
+        { id: "bronze", label: "Bronze", color: "#d08a4a", bright: "#d08a4a", soft: "rgba(208,138,74,0.3)" }
     ];
     var TIER_RANK = { author: 4, gold: 3, silver: 2, bronze: 1 };
 
@@ -58220,22 +58213,66 @@ window.__nswsDecrypt = async function(b64Data) {
         if (_storedMinPlayers !== null) minPlayersRuleEnabled = _storedMinPlayers === "true";
     } catch (e) {}
 
-    function tierForPercentile(pct) {
-        for (var i = 0; i < TIERS.length; i++) {
-            if (pct <= TIERS[i].max) return TIERS[i];
-        }
+    function extractTimeSeconds(t) {
+        if (t == null) return null;
+        if (typeof t === "number") return t;
+        if (typeof t.time === "number") return t.time;
         return null;
     }
 
-    // Combines the AT check (time-based, instant, always available) with the
-    // percentile check (rank-based, needs a placement fetch) to get the final tier.
-    function determineTier(trackId, finishSeconds, placement) {
-        var at = AT_TIMES[trackId];
-        if (at != null && finishSeconds != null && finishSeconds <= at) return AUTHOR_TIER;
-        if (!placement) return null;
-        if (minPlayersRuleEnabled && placement.total < MIN_PLAYERS_FOR_MEDAL) return null;
-        var pct = placement.position / placement.total;
-        return tierForPercentile(pct);
+    // In-memory cache of the fetched AT per track, so we're not re-hitting the
+    // leaderboard endpoint on every single tier check within the same session.
+    var benchmarkCache = {};
+    function fetchBenchmarkAT(trackId) {
+        var cached = benchmarkCache[trackId];
+        if (cached && (Date.now() - cached.ts) < BENCHMARK_CACHE_TTL_MS) {
+            return Promise.resolve(cached.value);
+        }
+        var url = LB_URL + "&trackId=" + encodeURIComponent(trackId) + "&skip=0&amount=" + BENCHMARK_SCAN_LIMIT;
+        return fetch(url).then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+        }).then(function (data) {
+            var entries = data && Array.isArray(data.entries) ? data.entries : [];
+            var target = BENCHMARK_NICKNAME.trim().toLowerCase();
+            var at = null;
+            for (var i = 0; i < entries.length; i++) {
+                var e = entries[i];
+                if (e && typeof e.nickname === "string" && e.nickname.trim().toLowerCase() === target) {
+                    at = extractTimeSeconds(e.time);
+                    break;
+                }
+            }
+            if (at == null) {
+                // Cookedbyapringle has no run here (or is ranked outside the scan window):
+                // fall back to 0.5s behind whoever holds the world record.
+                var wrTime = entries.length ? extractTimeSeconds(entries[0].time) : null;
+                at = wrTime != null ? wrTime + BENCHMARK_FALLBACK_OFFSET : null;
+            }
+            benchmarkCache[trackId] = { value: at, ts: Date.now() };
+            return at;
+        }).catch(function () {
+            return null;
+        });
+    }
+
+    // Gold/Silver/Bronze are time windows off of AT (rounded to the nearest second),
+    // checked in order from tightest to loosest.
+    function tierForTime(finishSeconds, at) {
+        if (at == null || finishSeconds == null) return null;
+        if (finishSeconds <= at) return AUTHOR_TIER;
+        if (finishSeconds <= Math.round(at * GOLD_MULTIPLIER)) return TIERS[0];
+        if (finishSeconds <= Math.round(at * SILVER_MULTIPLIER)) return TIERS[1];
+        if (finishSeconds <= Math.round(at * BRONZE_MULTIPLIER)) return TIERS[2];
+        return null;
+    }
+
+    // Combines the live AT fetch (Cookedbyapringle's time, or the world-record fallback)
+    // with the time-window check above to get the final tier for a run.
+    function determineTierAsync(trackId, finishSeconds) {
+        return fetchBenchmarkAT(trackId).then(function (at) {
+            return { tier: tierForTime(finishSeconds, at), at: at };
+        });
     }
 
     function getProfileSlot() {
@@ -58588,7 +58625,7 @@ window.__nswsDecrypt = async function(b64Data) {
             el.classList.add("no-medal");
             icon.textContent = "\uD83C\uDFC1";
             title.textContent = "No medal yet";
-            detail.textContent = "Finish in the top 85% (or beat the Author Time) to earn one";
+            detail.textContent = "Beat the Bronze medal time (or the Author Time) to earn one";
         }
         el.appendChild(icon);
         el.appendChild(text);
@@ -58597,25 +58634,27 @@ window.__nswsDecrypt = async function(b64Data) {
 
     function refreshMedalRecord(trackId, pbSeconds) {
         return fetchPlacement(trackId).then(function (placement) {
-            var tier = determineTier(trackId, pbSeconds, placement);
-            if (!tier) return false;
-            var store = loadStore();
-            var prev = store[trackId];
-            var percentile = placement ? placement.position / placement.total : null;
-            var unchanged = prev && prev.tier === tier.id
-                && (tier.id === "author" ? prev.time === pbSeconds : (prev.rank === placement.position && prev.total === placement.total));
-            if (unchanged) return false;
-            store[trackId] = {
-                tier: tier.id,
-                percentile: percentile,
-                rank: placement ? placement.position : null,
-                total: placement ? placement.total : null,
-                time: pbSeconds,
-                at: AT_TIMES[trackId] ?? null,
-                ts: Date.now()
-            };
-            saveStore(store);
-            return true;
+            return determineTierAsync(trackId, pbSeconds).then(function (result) {
+                var tier = result.tier;
+                if (!tier) return false;
+                var store = loadStore();
+                var prev = store[trackId];
+                var percentile = placement ? placement.position / placement.total : null;
+                var unchanged = prev && prev.tier === tier.id
+                    && (tier.id === "author" ? prev.time === pbSeconds : (prev.rank === placement.position && prev.total === placement.total));
+                if (unchanged) return false;
+                store[trackId] = {
+                    tier: tier.id,
+                    percentile: percentile,
+                    rank: placement ? placement.position : null,
+                    total: placement ? placement.total : null,
+                    time: pbSeconds,
+                    at: result.at,
+                    ts: Date.now()
+                };
+                saveStore(store);
+                return true;
+            });
         }).catch(function () {
             return false;
         });
@@ -58662,8 +58701,10 @@ window.__nswsDecrypt = async function(b64Data) {
         if (!enabled) return;
         var finishRunId = runId;
         setTimeout(function () {
-            fetchSettledPlacement(trackId).then(function (placement) {
-                var tier = determineTier(trackId, finishSeconds, placement);
+            Promise.all([fetchSettledPlacement(trackId), determineTierAsync(trackId, finishSeconds)]).then(function (results) {
+                var placement = results[0];
+                var tier = results[1].tier;
+                var at = results[1].at;
                 if (tier) {
                     var store = loadStore();
                     var prev = store[trackId];
@@ -58679,7 +58720,7 @@ window.__nswsDecrypt = async function(b64Data) {
                             rank: placement ? placement.position : null,
                             total: placement ? placement.total : null,
                             time: finishSeconds,
-                            at: AT_TIMES[trackId] ?? null,
+                            at: at,
                             ts: Date.now()
                         };
                         saveStore(store);
