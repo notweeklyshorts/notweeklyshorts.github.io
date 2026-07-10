@@ -58239,6 +58239,9 @@ window.__nswsDecrypt = async function(b64Data) {
     // In-memory cache of the fetched AT per track, so we're not re-hitting the
     // leaderboard endpoint on every single tier check within the same session.
     var benchmarkCache = {};
+    // Last computed pb/at/tier per track, purely for surfacing via a hover tooltip on
+    // the badge (devtools-free way to see exactly what values were used/found).
+    var lastDebugInfo = {};
     function fetchBenchmarkAT(trackId) {
         var cached = benchmarkCache[trackId];
         if (cached && (Date.now() - cached.ts) < BENCHMARK_CACHE_TTL_MS) {
@@ -58286,7 +58289,11 @@ window.__nswsDecrypt = async function(b64Data) {
     // checked in order from tightest to loosest.
     function tierForTime(finishSeconds, at) {
         if (at == null || finishSeconds == null) return null;
-        if (finishSeconds <= at) return AUTHOR_TIER;
+        // Small tolerance: the locally-tracked PB and the leaderboard-reported time for
+        // the same run can differ by a hair due to rounding, so a run that's really a
+        // tie with AT shouldn't miss the Author tier by a fraction of a millisecond.
+        var EPS = 0.001;
+        if (finishSeconds <= at + EPS) return AUTHOR_TIER;
         if (finishSeconds <= Math.round(at * GOLD_MULTIPLIER)) return TIERS[0];
         if (finishSeconds <= Math.round(at * SILVER_MULTIPLIER)) return TIERS[1];
         if (finishSeconds <= Math.round(at * BRONZE_MULTIPLIER)) return TIERS[2];
@@ -58651,6 +58658,10 @@ window.__nswsDecrypt = async function(b64Data) {
             title.textContent = "No medal yet";
             detail.textContent = "Beat the Bronze medal time (or the Author Time) to earn one";
         }
+        var dbg = lastDebugInfo[trackId];
+        if (dbg) {
+            el.title = "pb=" + dbg.pb + " at=" + dbg.at + " tier=" + (dbg.tier || "none") + " rank=" + dbg.rank + "/" + dbg.total;
+        }
         el.appendChild(icon);
         el.appendChild(text);
         return el;
@@ -58660,6 +58671,14 @@ window.__nswsDecrypt = async function(b64Data) {
         return fetchPlacement(trackId).then(function (placement) {
             return determineTierAsync(trackId, pbSeconds).then(function (result) {
                 var tier = result.tier;
+                lastDebugInfo[trackId] = {
+                    pb: pbSeconds,
+                    at: result.at,
+                    tier: tier ? tier.id : null,
+                    rank: placement ? placement.position : null,
+                    total: placement ? placement.total : null,
+                    ts: Date.now()
+                };
                 var store = loadStore();
                 var prev = store[trackId];
                 if (!tier) {
@@ -58710,8 +58729,8 @@ window.__nswsDecrypt = async function(b64Data) {
             slot.appendChild(buildMedalBadgeEl(trackId));
         };
         showBadge();
-        refreshMedalRecord(trackId, pbSeconds).then(function (changed) {
-            if (changed) showBadge();
+        refreshMedalRecord(trackId, pbSeconds).then(function () {
+            showBadge();
         });
     }
     window.__nswsRenderMedalBadge = renderMedalBadge;
