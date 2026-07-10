@@ -58482,13 +58482,12 @@ window.__nswsDecrypt = async function(b64Data) {
         return "\uD83E\uDD49";
     }
 
-    function medalSubText(tier, placement, finishSeconds) {
+    function medalSubText(tier, placement, finishSeconds, at) {
         if (tier.id === "author") {
             return "Beat the Author Time" + (finishSeconds != null ? " \u2022 " + formatSeconds(finishSeconds) : "");
         }
-        if (placement) {
-            var pctText = placement.position / placement.total < .01 ? "< 1%" : Math.round(placement.position / placement.total * 1e3) / 10 + "%";
-            return "Top " + pctText + " \u2022 Rank #" + placement.position.toLocaleString() + " / " + placement.total.toLocaleString();
+        if (finishSeconds != null && at != null) {
+            return "Time: " + formatSeconds(finishSeconds) + " \u2022 Author Time: " + formatSeconds(at);
         }
         return "";
     }
@@ -58520,10 +58519,10 @@ window.__nswsDecrypt = async function(b64Data) {
         activeBanner = null;
     }
 
-    function announceMedal(tier, placement, finishSeconds, isNewBest) {
+    function announceMedal(tier, placement, finishSeconds, isNewBest, at) {
         injectCSS();
         clearActiveBanner();
-        var subText = medalSubText(tier, placement, finishSeconds);
+        var subText = medalSubText(tier, placement, finishSeconds, at);
         var badgeText = isNewBest ? "New best medal on this track!" : null;
         var native = findNativeRecordBanner();
         if (native) {
@@ -58618,8 +58617,7 @@ window.__nswsDecrypt = async function(b64Data) {
             if (record.tier === "author") {
                 detail.textContent = "Time: " + formatSeconds(record.time) + " \u2022 Author: " + formatSeconds(record.at);
             } else {
-                var pct = record.percentile < .01 ? "< 1%" : Math.round(record.percentile * 1e3) / 10 + "%";
-                detail.textContent = "Top " + pct + " \u2022 Rank #" + record.rank.toLocaleString() + " / " + record.total.toLocaleString();
+                detail.textContent = "Time: " + formatSeconds(record.time) + (record.at != null ? " \u2022 Author Time: " + formatSeconds(record.at) : "");
             }
         } else {
             el.classList.add("no-medal");
@@ -58729,7 +58727,7 @@ window.__nswsDecrypt = async function(b64Data) {
                         // to the start of the same track. Don't pop up a banner for a run that's
                         // no longer the one on screen.
                         if (trackId !== currentTrackId || runId !== finishRunId) return;
-                        announceMedal(tier, placement, finishSeconds, isNewBest);
+                        announceMedal(tier, placement, finishSeconds, isNewBest, at);
                         return;
                     }
                 }
