@@ -50523,21 +50523,35 @@ window.__nswsDecrypt = async function(b64Data) {
             setTimeout(( () => {
                 if (!n.isCancelled) {
                     const i = 20
-                      , r = C.get(this, Ao, "f") * i;
-                    C.get(this, $s, "f").getLeaderboard(C.get(this, to, "f").getCurrentUserProfile().tokenHash, C.get(this, Ys, "f"), r, i, false).then(( ({total: a, entries: __nswsRawEntries, userEntry: o}) => {
+                      , r = C.get(this, Ao, "f") * i
+                      , __nswsTokenHash = C.get(this, to, "f").getCurrentUserProfile().tokenHash
+                      , __nswsTrackId = C.get(this, Ys, "f")
+                      , __nswsIsNSWSTrack = !C.get(this, mo, "f");
+                    Promise.all([
+                        C.get(this, $s, "f").getLeaderboard(__nswsTokenHash, __nswsTrackId, r, i, false),
+                        __nswsIsNSWSTrack
+                            ? C.get(this, $s, "f").getLeaderboard(__nswsTokenHash, __nswsTrackId, r, i, false, "https://vps.kodub.com/").catch(( () => null))
+                            : Promise.resolve(null)
+                    ]).then(( ([{total: a, entries: __nswsRawEntries, userEntry: o}, __nswsVpsResult]) => {
                         if (!n.isCancelled) {
                             const __nswsBanlist = (window.__nswsLeaderboardBanlist || []).map(b => b.trim().toLowerCase());
+                            const __nswsVpsEntries = (__nswsVpsResult && Array.isArray(__nswsVpsResult.entries))
+                                ? __nswsVpsResult.entries
+                                    .filter(ve => !__nswsRawEntries.some(pe => pe.id == ve.id))
+                                    .map(ve => Object.assign({}, ve, {__nswsIsVps: true}))
+                                : [];
+                            const __nswsMerged = __nswsRawEntries.concat(__nswsVpsEntries).sort(((x, y) => x.time.numberOfFrames - y.time.numberOfFrames));
                             const s = __nswsBanlist.length
-                                ? __nswsRawEntries.filter(e => !__nswsBanlist.includes((e.nickname || "").trim().toLowerCase()))
-                                : __nswsRawEntries;
+                                ? __nswsMerged.filter(e => !__nswsBanlist.includes((e.nickname || "").trim().toLowerCase()))
+                                : __nswsMerged;
                             C.set(this, vo, Math.ceil(a / i), "f"),
                             C.get(this, Xs, "m", Eo).call(this),
                             C.get(this, oo, "f").textContent = C.get(this, Zs, "f").get("{0} players", [Mo(a)]),
                             C.get(this, oo, "f").classList.add("fade-in");
                             for (let e = 0; e < s.length; e++) {
-                                const {id: t, nickname: i, countryCode: a, time: o, carStyle: l, verifiedState: c, isSelf: h} = s[e]
+                                const {id: t, nickname: i, countryCode: a, time: o, carStyle: l, verifiedState: c, isSelf: h, __nswsIsVps: v} = s[e]
                                   , d = r + e + 1;
-                                C.get(this, Xs, "m", ko).call(this, d, i, a, o, l, c, h, t, n)
+                                C.get(this, Xs, "m", ko).call(this, d, i, a, o, l, c, h, t, n, !!v)
                             }
                             C.get(this, $s, "f").determinismState == Js.Ok && (null != o ? (C.set(this, yo, Math.floor((o.position - 1) / i), "f"),
                             C.get(this, ho, "f").disabled = !1,
@@ -50573,7 +50587,7 @@ window.__nswsDecrypt = async function(b64Data) {
             ), 500)
         }
         ,
-        ko = function(e, t, n, i, r, a, s, o, l) {
+        ko = function(e, t, n, i, r, a, s, o, l, __nswsIsVpsEntry) {
             const c = document.createElement("button");
             c.className = "button main",
             s && (C.set(this, bo, c, "f"),
@@ -50613,7 +50627,7 @@ window.__nswsDecrypt = async function(b64Data) {
             p.className = "checkmark",
             p.src = "images/checkmark.svg",
             c.appendChild(p);
-            if (C.get(this, mo, "f")) {
+            if (C.get(this, mo, "f") || __nswsIsVpsEntry) {
                 const w = document.createElement("img");
                 w.className = "vps-warning",
                 w.src = "images/warning.svg",
@@ -56060,8 +56074,8 @@ window.__nswsDecrypt = async function(b64Data) {
                 Su.set(this, 1e4),
                 ku.set(this, "v6/")
             }
-            getLeaderboard(e, t, n, i, r) {
-                let a = "https://ptproxy.cwcinc.dev/" + C.get(this, ku, "f") + "leaderboard?version=0.6.2&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
+            getLeaderboard(e, t, n, i, r, __nswsHost) {
+                let a = (__nswsHost || "https://ptproxy.cwcinc.dev/") + C.get(this, ku, "f") + "leaderboard?version=0.6.2&trackId=" + t + "&skip=" + n.toString() + "&amount=" + i.toString() + "&onlyVerified=" + r.toString();
                 return this.determinismState == Js.Ok && (a += "&userTokenHash=" + encodeURIComponent(e)),
                 new Promise(( (t, n) => {
                     const i = new XMLHttpRequest;
