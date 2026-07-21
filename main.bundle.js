@@ -59044,14 +59044,12 @@ window.__nswsDecrypt = async function(b64Data) {
 
 (function () {
     // --- CPS (clicks per second) counter, shown in the top-right corner while driving. ---
-    var BINDINGS_KEY = "polytrack_v5_prod_key_bindings";
-    var DRIVE_ACTIONS = {
-        VehicleAccelerate: 1,
-        VehicleBrake: 1,
-        VehicleTurnLeft: 1,
-        VehicleTurnRight: 1
-    };
-
+    // Reads the game's own resolved control state each frame instead of listening to raw
+    // keyboard events. This is also the correct source of truth while watching a replay of
+    // your own run: the player state's getControls() transparently returns the replay's
+    // recorded controls (instead of the live keyboard) whenever the local player is being
+    // driven by a replay, so live driving and replay watching both feed the same counter
+    // through the exact same code path.
     var inputTimes = [];
     var totalInputs = 0;
     var burstFlashTimeout = null;
@@ -59061,38 +59059,7 @@ window.__nswsDecrypt = async function(b64Data) {
     // Only counts once the run's timer has actually started - see the hasStarted()
     // transition handling in update() below.
     var runActive = false;
-    var driveKeys = {}, heldKeys = {};
-
-    function loadBindings() {
-        driveKeys = {};
-        try {
-            var raw = localStorage.getItem(BINDINGS_KEY);
-            var bindings = raw ? JSON.parse(raw) : [];
-            for (var i = 0; i < bindings.length; i++) {
-                var action = bindings[i][0], keys = bindings[i][1];
-                if (!DRIVE_ACTIONS[action]) continue;
-                for (var j = 0; j < keys.length; j++) {
-                    if (keys[j] != null) driveKeys[keys[j]] = 1;
-                }
-            }
-        } catch (e) {}
-        if (Object.keys(driveKeys).length === 0) {
-            driveKeys = {
-                ArrowUp: 1,
-                ArrowDown: 1,
-                ArrowLeft: 1,
-                ArrowRight: 1,
-                KeyW: 1,
-                KeyS: 1,
-                KeyA: 1,
-                KeyD: 1
-            };
-        }
-    }
-    loadBindings();
-    window.addEventListener("storage", function (e) {
-        if (e.key === BINDINGS_KEY) loadBindings();
-    });
+    var prevControls = { up: false, down: false, left: false, right: false };
 
     var styleEl = document.createElement("style");
     styleEl.textContent = "#_nsws-cps{position:absolute;top:12px;right:20px;z-index:10;pointer-events:none;" +
@@ -59108,7 +59075,6 @@ window.__nswsDecrypt = async function(b64Data) {
     function clearAll() {
         inputTimes = [];
         totalInputs = 0;
-        heldKeys = {};
     }
 
     function recordInput(t) {
@@ -59123,28 +59089,17 @@ window.__nswsDecrypt = async function(b64Data) {
         }
     }
 
-    document.addEventListener("keydown", function (e) {
-        if (e.repeat) return;
-        if (driveKeys[e.code] && !heldKeys[e.code]) {
-            heldKeys[e.code] = true;
-            // Ignore anything pressed before the run's timer has actually started
-            // (e.g. spamming left/right while sitting at the start line).
-            if (runActive) recordInput(performance.now());
-        }
-    }, true);
-    document.addEventListener("keyup", function (e) {
-        if (driveKeys[e.code]) heldKeys[e.code] = false;
-    }, true);
-
     function update() {
         requestAnimationFrame(update);
         if (!cpsEl) return;
         var inGame = !!document.querySelector(".game-ui");
         if (!prevInGame && inGame) {
-            // Freshly entering gameplay (loading into a track): start from a clean slate.
+            // Freshly entering gameplay (loading into a track, or opening a replay): start
+            // from a clean slate.
             clearAll();
             prevHasStarted = false;
             runActive = false;
+            prevControls = { up: false, down: false, left: false, right: false };
         }
         prevInGame = inGame;
         if (!inGame) {
@@ -59154,32 +59109,41 @@ window.__nswsDecrypt = async function(b64Data) {
         cpsEl.classList.remove("hidden");
 
         var playerState = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
+        var controls = playerState && typeof playerState.getControls === "function" ? playerState.getControls() : null;
         var hasStarted = playerState ? !!playerState.hasStarted() : false;
         if (hasStarted && !prevHasStarted) {
-            // The run's timer just started (forward/backward pressed at the start
+            // The run's timer just started (forward/backward pressed/replayed at the start
             // line). Wipe out anything counted beforehand (e.g. left/right spam while
-            // waiting) and start fresh. The forward/backward press that triggered this
-            // transition fires its keydown before this frame's hasStarted() check can
-            // see it as "active", so it never reaches recordInput() - compensate by
-            // seeding the counters with that one input instead of starting at zero.
+            // waiting) and start fresh. Since controls are read from the same resolved state
+            // the game itself just used to trigger the start, the up/down input that caused
+            // it is still visible as a rising edge below and gets picked up naturally.
             clearAll();
-            totalInputs = 1;
-            inputTimes.push(performance.now());
             runActive = true;
         } else if (!hasStarted && prevHasStarted) {
             // The only moment a run's timer actually goes back to zero is when
             // hasStarted() flips from true back to false: that happens for a full
-            // restart (the start-reset keybind) AND for a checkpoint-reset that falls
-            // back to a full restart because there's no valid checkpoint to respawn at
-            // (a "double respawn"). Catching that transition here - rather than only
-            // reacting to the checkpoint-reset flag like before - covers every kind of
-            // restart, while a normal mid-run checkpoint respawn (which keeps
-            // hasStarted() true) correctly leaves the counter alone since the timer
-            // keeps running through it. Go back to idle until the next start.
+            // restart (the start-reset keybind/replay input) AND for a checkpoint-reset
+            // that falls back to a full restart because there's no valid checkpoint to
+            // respawn at (a "double respawn"). Catching that transition here - rather than
+            // only reacting to the checkpoint-reset flag - covers every kind of restart,
+            // while a normal mid-run checkpoint respawn (which keeps hasStarted() true)
+            // correctly leaves the counter alone since the timer keeps running through it.
+            // Go back to idle until the next start.
             clearAll();
             runActive = false;
         }
         prevHasStarted = hasStarted;
+
+        if (controls) {
+            var now = performance.now();
+            ["up", "down", "left", "right"].forEach(function (dir) {
+                var pressed = !!controls[dir];
+                if (runActive && pressed && !prevControls[dir]) recordInput(now);
+                prevControls[dir] = pressed;
+            });
+        } else {
+            prevControls = { up: false, down: false, left: false, right: false };
+        }
 
         var now = performance.now();
         var cutoff = now - 1e3;
