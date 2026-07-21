@@ -59063,7 +59063,7 @@ window.__nswsDecrypt = async function(b64Data) {
     var prevControls = { up: false, down: false, left: false, right: false };
 
     var styleEl = document.createElement("style");
-    styleEl.textContent = "#_nsws-cps{position:absolute;top:12px;right:20px;z-index:10;pointer-events:none;" +
+    styleEl.textContent = "#_nsws-cps{position:absolute;top:12px;right:20px;pointer-events:none;" +
         "font-family:ForcedSquare,Arial,sans-serif;font-style:italic;color:var(--text-color,#fff);" +
         "font-size:24px;text-shadow:0 0 6px rgba(0,0,0,0.8),0 2px 4px rgba(0,0,0,0.6);" +
         "background-color:var(--surface-color,rgba(17,32,82,0.55));padding:5px 14px;" +
@@ -59112,6 +59112,7 @@ window.__nswsDecrypt = async function(b64Data) {
         var playerState = typeof window.__getPlayerState === "function" ? window.__getPlayerState() : null;
         var controls = playerState && typeof playerState.getControls === "function" ? playerState.getControls() : null;
         var hasStarted = playerState ? !!playerState.hasStarted() : false;
+        var paused = playerState ? !!playerState.isPaused : false;
         if (hasStarted && !prevHasStarted) {
             // The run's timer just started (forward/backward pressed/replayed at the start
             // line). Wipe out anything counted beforehand (e.g. left/right spam while
@@ -59150,11 +59151,13 @@ window.__nswsDecrypt = async function(b64Data) {
             prevControls = { up: false, down: false, left: false, right: false };
         }
 
-        var now = performance.now();
-        var cutoff = now - 1e3;
-        while (inputTimes.length && inputTimes[0] < cutoff) inputTimes.shift();
+        if (!paused) {
+            var now = performance.now();
+            var cutoff = now - 1e3;
+            while (inputTimes.length && inputTimes[0] < cutoff) inputTimes.shift();
+            burstSpan.textContent = inputTimes.length;
+        }
         cpsEl.childNodes[0].nodeValue = totalInputs + "/";
-        burstSpan.textContent = inputTimes.length;
     }
 
     function tryInit() {
