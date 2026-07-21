@@ -52858,7 +52858,7 @@ window.__nswsDecrypt = async function(b64Data) {
 
                     const weekMenu = document.createElement("div");
                     weekMenu.id = "nsws-week-menu";
-                    weekMenu.style.cssText = "display:none;position:absolute;top:calc(100% + 10px);left:0;min-width:200px;background:var(--surface-color);border:1px solid rgba(255,255,255,0.12);z-index:10001;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);box-shadow:0 12px 28px rgba(0,0,0,0.5);overflow:hidden;";
+                    weekMenu.style.cssText = "display:none;position:absolute;top:calc(100% + 10px);left:0;min-width:280px;background:var(--surface-color);border:1px solid rgba(255,255,255,0.12);z-index:10001;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%);box-shadow:0 12px 28px rgba(0,0,0,0.5);overflow:hidden;";
                     weekDropdownWrap.appendChild(weekMenu);
 
                     let weekMenuOpen = false;
@@ -52887,7 +52887,7 @@ window.__nswsDecrypt = async function(b64Data) {
                             const isSelected = w.week === selectedWeek;
                             const item = document.createElement("button");
                             item.style.cssText = [
-                                "display:flex","align-items:center","justify-content:space-between",
+                                "display:flex","align-items:center","justify-content:space-between","gap:24px",
                                 "width:100%","padding:12px 18px","background:" + (isSelected ? "rgba(80,180,255,0.12)" : "transparent"),
                                 "border:none","border-bottom:1px solid rgba(255,255,255,0.06)",
                                 "color:var(--text-color)","font-size:18px","font-family:inherit",
