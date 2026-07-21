@@ -57777,6 +57777,7 @@ window.__nswsDecrypt = async function(b64Data) {
                 C.get(this, Ef, "f")?.dispose()
             }
             update(e) {
+                window.__getPlayerState = () => C.get(this, uf, "f")[C.get(this, df, "f")]?.car ?? null,
                 C.set(this, pf, C.get(this, vf, "f").isPaused, "f");
                 let t = 1 / 0;
                 for (const e of C.get(this, uf, "f"))
@@ -59114,11 +59115,15 @@ window.__nswsDecrypt = async function(b64Data) {
         if (hasStarted && !prevHasStarted) {
             // The run's timer just started (forward/backward pressed/replayed at the start
             // line). Wipe out anything counted beforehand (e.g. left/right spam while
-            // waiting) and start fresh. Since controls are read from the same resolved state
-            // the game itself just used to trigger the start, the up/down input that caused
-            // it is still visible as a rising edge below and gets picked up naturally.
+            // waiting) and start fresh, seeded at 1 for the press that just started the run
+            // (rather than 0), since that press is itself an input. Sync prevControls to the
+            // current frame's state so the edge-detection loop below doesn't also count that
+            // same press a second time.
             clearAll();
+            totalInputs = 1;
+            inputTimes.push(performance.now());
             runActive = true;
+            if (controls) prevControls = { up: !!controls.up, down: !!controls.down, left: !!controls.left, right: !!controls.right };
         } else if (!hasStarted && prevHasStarted) {
             // The only moment a run's timer actually goes back to zero is when
             // hasStarted() flips from true back to false: that happens for a full
